@@ -13,7 +13,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "firebase": "^11.0.0",
-    "lucide-react": "latest"
+    "lucide-react": "latest",
+    "react-hot-toast": "latest"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
