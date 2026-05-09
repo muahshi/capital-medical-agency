@@ -1,4 +1,3 @@
-```react
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { initializeApp, getApps } from 'firebase/app';
@@ -49,4 +48,3 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => useContext(AuthContext);
 
-```
