@@ -3,8 +3,7 @@ import { useState, useCallback } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
 import { useStock } from './hooks/useStock'
-// Humne yahan brackets { } laga diye hain taaki export clear rahe
-import { LoginPage } from './components/LoginPage' 
+import { LoginPage } from './components/LoginPage' // Named import from our new LoginPage
 import Dashboard from './components/Dashboard'
 import InventoryPage from './components/InventoryPage'
 import ScannerPage from './components/ScannerPage'
@@ -24,6 +23,7 @@ const getDemoMode = () => {
 
 const DEMO_MODE = getDemoMode();
 
+// Use 'export default' here so main.jsx can find it
 export default function App() {
   const { user, loading } = useAuth()
   const [isDemoMode, setIsDemoMode] = useState(DEMO_MODE)
@@ -40,7 +40,7 @@ export default function App() {
 
   if (loading && !isDemoMode) {
     return (
-      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <div className="w-12 h-12 border-2 border-yellow-500/20 border-t-yellow-500 animate-spin rounded-full" />
       </div>
     )
@@ -48,10 +48,10 @@ export default function App() {
 
   if (!isDemoMode && !user) {
     return (
-      <>
+      <div className="min-h-screen bg-[#050505]">
         <LoginPage onDemoMode={() => setIsDemoMode(true)} />
         <Toaster position="top-center" />
-      </>
+      </div>
     )
   }
 
