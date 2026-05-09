@@ -1,121 +1,83 @@
 ```react
 import React, { useState } from 'react';
-import { 
-  Lock, 
-  ShieldCheck, 
-  ChevronRight, 
-  AlertCircle,
-  Eye,
-  EyeOff,
-  Zap
-} from 'lucide-react';
+import { ShieldCheck, Lock, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export const LoginPage = ({ onLoginSuccess }) => {
-  const [pin, setPin] = useState('');
-  const [showPin, setShowPin] = useState(false);
-  const [error, setError] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [passkey, setPasskey] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [isError, setIsError] = useState(false);
 
-  // Aapka Private Access Key (Ise aap kabhi bhi yahan se badal sakte hain)
-  const ADMIN_SECRET_PIN = "CMA@2024"; 
+  // Aapki secret key
+  const MASTER_KEY = "CMA@2024"; 
 
-  const handleSubmit = (e) => {
+  const handleUnlock = (e) => {
     e.preventDefault();
-    setIsVerifying(true);
-
-    // Thoda delay taaki professional feel aaye (Verification simulation)
-    setTimeout(() => {
-      if (pin === ADMIN_SECRET_PIN) {
-        setError(false);
-        localStorage.setItem('cma_admin_auth', 'true');
-        toast.success('Access Granted! Swagat hai.', {
-          style: { background: '#111', color: '#EAB308', border: '1px solid #EAB30833' }
-        });
-        onLoginSuccess();
-      } else {
-        setError(true);
-        toast.error('Galat Access Key! Dubara koshish karein.');
-        setIsVerifying(false);
-        // Error shake effect ke liye trigger
-        setTimeout(() => setError(false), 2000);
-      }
-    }, 800);
+    
+    if (passkey === MASTER_KEY) {
+      localStorage.setItem('cma_admin_auth', 'true');
+      toast.success('System Unlocked!');
+      onLoginSuccess();
+    } else {
+      setIsError(true);
+      toast.error('Galat Access Key!');
+      setTimeout(() => setIsError(false), 2000);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      {/* Background Aesthetic */}
-      <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] bg-yellow-500/10 blur-[150px] rounded-full" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-yellow-600/5 blur-[150px] rounded-full" />
-
-      <div className="w-full max-w-sm relative z-10">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-24 h-24 rounded-[2.5rem] bg-gradient-to-br from-yellow-400 to-yellow-600 p-[1px] mb-6 shadow-3xl shadow-yellow-500/20">
-            <div className="w-full h-full bg-[#0a0a0a] rounded-[38px] flex items-center justify-center">
-              <ShieldCheck className="text-yellow-500 w-12 h-12" strokeWidth={1.2} />
-            </div>
+    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-white font-sans">
+      <div className="w-full max-w-sm space-y-12">
+        
+        {/* Logo Section */}
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-20 h-20 bg-yellow-500/10 rounded-3xl flex items-center justify-center border border-yellow-500/20 shadow-2xl shadow-yellow-500/10">
+            <ShieldCheck className="text-yellow-500 w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">CMA Private</h1>
-          <p className="text-gray-500 text-xs mt-3 font-bold tracking-[0.2em] uppercase opacity-70">
-            Enterprise Asset Management
-          </p>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold tracking-tight">CMA SECURE</h1>
+            <p className="text-gray-500 text-xs mt-1 uppercase tracking-widest">Internal Inventory System</p>
+          </div>
         </div>
 
-        <div className={`bg-[#111]/90 border ${error ? 'border-red-500/50' : 'border-white/10'} backdrop-blur-3xl rounded-[3rem] p-10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] transition-all duration-300 ${error ? 'translate-x-1' : ''}`}>
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <label className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">
-                  Secure Access Key
-                </label>
-                <Zap size={12} className="text-yellow-500/50" />
-              </div>
-              
+        {/* Input Card */}
+        <div className={`bg-[#0A0A0A] border ${isError ? 'border-red-500/50' : 'border-white/5'} rounded-[2.5rem] p-8 transition-all duration-300`}>
+          <form onSubmit={handleUnlock} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] text-gray-500 font-bold uppercase ml-1">Admin Access Key</label>
               <div className="relative group">
-                <Lock className={`absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${error ? 'text-red-500' : 'text-gray-500 group-focus-within:text-yellow-500'}`} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 group-focus-within:text-yellow-500 transition-colors" />
                 <input 
-                  type={showPin ? "text" : "password"}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="Enter Key"
-                  autoFocus
-                  className={`w-full bg-white/5 border ${error ? 'border-red-500/50' : 'border-white/10 group-focus-within:border-yellow-500/40'} rounded-2xl py-5 pl-14 pr-14 text-white transition-all duration-500 outline-none text-xl tracking-[0.3em] font-mono placeholder:tracking-normal placeholder:text-gray-700`}
+                  type={showPass ? "text" : "password"}
+                  value={passkey}
+                  onChange={(e) => setPasskey(e.target.value)}
+                  placeholder="Enter Passkey"
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 pl-12 pr-12 outline-none focus:border-yellow-500/50 focus:bg-white/[0.05] transition-all text-lg tracking-widest"
                 />
                 <button 
-                  type="button" 
-                  onClick={() => setShowPin(!showPin)}
-                  className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white transition-colors"
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600"
                 >
-                  {showPin ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
             <button 
               type="submit"
-              disabled={isVerifying || !pin}
-              className="w-full bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-300 hover:to-yellow-500 text-black font-black py-5 rounded-[1.5rem] flex items-center justify-center gap-3 shadow-2xl shadow-yellow-600/20 active:scale-[0.97] transition-all duration-300 disabled:opacity-50 disabled:grayscale"
+              className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/10 active:scale-95 transition-all"
             >
-              {isVerifying ? (
-                <div className="w-6 h-6 border-4 border-black/20 border-t-black rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span className="uppercase tracking-widest text-sm">Unlock System</span>
-                  <ChevronRight size={20} strokeWidth={3} />
-                </>
-              )}
+              Verify & Enter
+              <ChevronRight size={18} />
             </button>
           </form>
         </div>
 
-        <div className="mt-16 text-center space-y-2">
-          <p className="text-[9px] text-gray-700 uppercase tracking-[0.4em] font-bold">
-            Authorized for Capital Medical Agency
-          </p>
-          <div className="h-[1px] w-12 bg-yellow-500/20 mx-auto" />
-          <p className="text-[8px] text-gray-800 uppercase tracking-[0.2em]">
-            Bhopal • Madhya Pradesh • Internal Use Only
+        <div className="text-center">
+          <p className="text-[10px] text-gray-700 uppercase tracking-widest leading-relaxed">
+            Capital Medical Agency • Bhopal, MP<br/>
+            Authorized Personnel Access Only
           </p>
         </div>
       </div>
