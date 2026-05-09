@@ -12,12 +12,10 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "firebase": "^11.0.0",
     "lucide-react": "latest",
     "react-hot-toast": "latest",
     "date-fns": "^3.6.0",
-    "recharts": "^2.12.7",
-    "@supabase/supabase-js": "^2.45.0"
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
