@@ -7,39 +7,30 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'Capital Medical Agency',
         short_name: 'CMA',
-        description: 'AI-Powered Medical Inventory Management',
-        theme_color: '#000000',
-        background_color: '#000000',
-        display: 'standalone',
-        orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        description: 'Medical Inventory Management System',
+        theme_color: '#050505',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-        ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
           {
-            urlPattern: /^https:\/\/api\.groq\.com\/.*/i,
-            handler: 'NetworkOnly',
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
           },
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 }
-            }
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
           }
         ]
       }
     })
-  ]
+  ],
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false
+  }
 })
