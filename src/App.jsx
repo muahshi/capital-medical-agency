@@ -1,7 +1,5 @@
-```react
 import React, { useState, useEffect, useCallback } from 'react'
 import { Toaster } from 'react-hot-toast'
-// Components direct import (Verify paths in your project)
 import { LoginPage } from './components/LoginPage'
 import Dashboard from './components/Dashboard'
 import InventoryPage from './components/InventoryPage'
@@ -9,6 +7,7 @@ import ScannerPage from './components/ScannerPage'
 import HistoryPage from './components/HistoryPage'
 import SettingsPage from './components/SettingsPage'
 import BottomNav from './components/BottomNav'
+import { useStock } from './hooks/useStock'
 import './styles/globals.css'
 
 export default function App() {
@@ -17,31 +16,28 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [inventoryFilter, setInventoryFilter] = useState('all')
 
-  // Auth check logic - No Supabase dependency here
+  // Auth check — sirf localStorage
   useEffect(() => {
     try {
       const authStatus = localStorage.getItem('cma_admin_auth')
-      if (authStatus === 'true') {
-        setIsAuthenticated(true)
-      }
-    } catch (e) {
-      console.error("Auth state check failed", e)
-    }
-    // Chota sa delay loading smooth karne ke liye
+      if (authStatus === 'true') setIsAuthenticated(true)
+    } catch (e) {}
     const timer = setTimeout(() => setIsLoading(false), 300)
     return () => clearTimeout(timer)
   }, [])
 
   const handleLogout = () => {
     localStorage.removeItem('cma_admin_auth')
-    setIsAuthenticated(false)
-    window.location.reload() // Full clean state
+    window.location.reload()
   }
 
   const handleNavigate = useCallback((tab, filter) => {
     setActiveTab(tab)
     if (filter) setInventoryFilter(filter)
   }, [])
+
+  // Stock — localStorage se, koi Supabase nahi
+  const { items, loading: stockLoading, addItems, updateItem, removeItem } = useStock()
 
   if (isLoading) {
     return (
@@ -51,7 +47,6 @@ export default function App() {
     )
   }
 
-  // Agar login nahi hai toh sirf Login Page dikhao
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#050505]">
@@ -61,34 +56,33 @@ export default function App() {
     )
   }
 
-  // Main Application Layout
   return (
     <div className="min-h-screen flex flex-col bg-[#050505] text-[#F5F5F0]">
       <Toaster position="top-center" />
-      
+
       <main className="flex-1 flex flex-col overflow-hidden pb-20">
         {activeTab === 'dashboard' && (
-          <Dashboard items={[]} onNavigate={handleNavigate} />
+          <Dashboard items={items} onNavigate={handleNavigate} />
         )}
         {activeTab === 'inventory' && (
-          <InventoryPage 
-            items={[]} 
-            onUpdate={() => {}} 
-            onDelete={() => {}} 
-            initialFilter={inventoryFilter} 
+          <InventoryPage
+            items={items}
+            onUpdate={updateItem}
+            onDelete={removeItem}
+            initialFilter={inventoryFilter}
           />
         )}
         {activeTab === 'scan' && (
-          <ScannerPage userId="admin-cma" onItemsAdded={() => {}} />
+          <ScannerPage userId="admin-cma" onItemsAdded={addItems} />
         )}
         {activeTab === 'history' && (
-          <HistoryPage items={[]} />
+          <HistoryPage items={items} />
         )}
         {activeTab === 'settings' && (
-          <SettingsPage 
-            user={{ email: 'admin@capitalmedical.agency', role: 'Owner' }} 
-            isDemoMode={false} 
-            items={[]}
+          <SettingsPage
+            user={{ email: 'admin@capitalmedical.agency', role: 'Owner' }}
+            isDemoMode={false}
+            items={items}
             onLogout={handleLogout}
           />
         )}
@@ -98,5 +92,3 @@ export default function App() {
     </div>
   )
 }
-
-```
