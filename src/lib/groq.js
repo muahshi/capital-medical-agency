@@ -1,6 +1,6 @@
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const MODEL = 'llama-3.2-11b-vision-preview'
+const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
 
 const SYSTEM_PROMPT = `You are an expert medical invoice OCR system for Indian pharmaceutical distributors.
 Extract all medicine/drug line items from the bill image and return ONLY a valid JSON array.
