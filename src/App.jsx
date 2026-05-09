@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react' // 'import' must be lowercase
+import { useState, useCallback } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
 import { useStock } from './hooks/useStock'
@@ -11,28 +11,16 @@ import SettingsPage from './components/SettingsPage'
 import BottomNav from './components/BottomNav'
 import './styles/globals.css'
 
-// Safe check for environment variables
-const getDemoMode = () => {
-  try {
-    const url = import.meta.env.VITE_SUPABASE_URL;
-    return !url || url.includes('placeholder') || url === "";
-  } catch (e) {
-    return true; // Default to demo if env is missing
-  }
-}
-
-const DEMO_MODE = getDemoMode();
-
 export default function App() {
   const { user, loading } = useAuth()
-  const [isDemoMode, setIsDemoMode] = useState(DEMO_MODE)
+  const [isDemoMode, setIsDemoMode] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [inventoryFilter, setInventoryFilter] = useState('all')
 
-  const currentUser = isDemoMode ? { id: 'demo', email: 'demo@cma.local' } : user
+  const currentUser = isDemoMode ? { id: null, email: 'demo@cma.local' } : user
 
   const { items, loading: stockLoading, addItems, updateItem, removeItem } = useStock(
-    isDemoMode ? null : currentUser?.id
+    isDemoMode ? null : user?.id
   )
 
   const handleNavigate = useCallback((tab, filter) => {
@@ -47,28 +35,27 @@ export default function App() {
     }
   }, [addItems])
 
-  // 1. Loading state (Sirf tab dikhaye jab auth confirm ho raha ho)
-  if (loading && !isDemoMode) {
+  // Loading spinner
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
-        <div className="relative">
-          <div className="w-16 h-16 rounded-full border-2 border-yellow-500/20 border-t-yellow-500 animate-spin" />
-        </div>
-        <p className="text-yellow-500 font-mono text-xs tracking-widest uppercase">Initializing Systems...</p>
+        <div className="w-16 h-16 rounded-full border-2 border-yellow-500/20 border-t-yellow-500 animate-spin" />
+        <p className="text-yellow-500 font-mono text-xs tracking-widest uppercase">Loading...</p>
       </div>
     )
   }
 
-  // 2. Auth check (Login dikhaye agar user nahi hai aur demo mode off hai)
+  // Show login if not logged in and not demo mode
   if (!isDemoMode && !user) {
     return (
       <div className="min-h-screen bg-[#050505]">
-        <LoginPage onDemoMode={() => setIsDemoMode(true)} />
         <Toaster position="top-center" />
+        <LoginPage onDemoMode={() => setIsDemoMode(true)} />
       </div>
     )
   }
 
+  // Main app
   return (
     <div className="min-h-screen flex flex-col bg-[#050505] text-[#F5F5F0]">
       <Toaster
@@ -82,8 +69,6 @@ export default function App() {
           },
         }}
       />
-
-      {/* Main content area */}
       <main className="flex-1 flex flex-col overflow-hidden pb-20">
         {activeTab === 'dashboard' && (
           <Dashboard items={items || []} onNavigate={handleNavigate} />
@@ -113,10 +98,7 @@ export default function App() {
           />
         )}
       </main>
-
-      {/* Bottom navigation */}
       <BottomNav active={activeTab} onChange={setActiveTab} />
     </div>
   )
 }
-
