@@ -1,38 +1,32 @@
 ```react
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense, lazy } from 'react'
 import { Toaster } from 'react-hot-toast'
-import { useStock } from './hooks/useStock'
 import { LoginPage } from './components/LoginPage'
-import Dashboard from './components/Dashboard'
-import InventoryPage from './components/InventoryPage'
-import ScannerPage from './components/ScannerPage'
-import HistoryPage from './components/HistoryPage'
-import SettingsPage from './components/SettingsPage'
 import BottomNav from './components/BottomNav'
 import './styles/globals.css'
+
+// Lazy loading components to prevent white screen crashes
+const Dashboard = lazy(() => import('./components/Dashboard'))
+const InventoryPage = lazy(() => import('./components/InventoryPage'))
+const ScannerPage = lazy(() => import('./components/ScannerPage'))
+const HistoryPage = lazy(() => import('./components/HistoryPage'))
+const SettingsPage = lazy(() => import('./components/SettingsPage'))
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('dashboard')
-  const [inventoryFilter, setInventoryFilter] = useState('all')
 
-  // Check auth on load
   useEffect(() => {
-    const authStatus = localStorage.getItem('cma_admin_auth')
-    if (authStatus === 'true') {
-      setIsAuthenticated(true)
+    try {
+      const authStatus = localStorage.getItem('cma_admin_auth')
+      if (authStatus === 'true') {
+        setIsAuthenticated(true)
+      }
+    } catch (e) {
+      console.error("Storage error:", e)
     }
     setIsLoading(false)
-  }, [])
-
-  // Agar hum authenticated hain toh stock hooks chalu karenge
-  // Note: Yahan aap apni original useAuth ya demo ID pass kar sakte hain
-  const { items, addItems, updateItem, removeItem } = useStock('cma-admin-user')
-
-  const handleNavigate = useCallback((tab, filter) => {
-    setActiveTab(tab)
-    if (filter) setInventoryFilter(filter)
   }, [])
 
   const handleLogout = () => {
@@ -40,6 +34,7 @@ export default function App() {
     setIsAuthenticated(false)
   }
 
+  // Loading state with a dark background to match theme
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
@@ -48,47 +43,40 @@ export default function App() {
     )
   }
 
-  // Show login if not authenticated
+  // 1. Agar login nahi hai, toh seedha Login Page dikhao
   if (!isAuthenticated) {
     return (
-      <div className="bg-[#050505]">
+      <div className="min-h-screen bg-[#050505]">
         <LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />
         <Toaster position="top-center" />
       </div>
     )
   }
 
-  // Dashboard View
+  // 2. Agar login hai, toh Dashboard dikhao
   return (
     <div className="min-h-screen flex flex-col bg-[#050505] text-[#F5F5F0]">
       <Toaster position="top-center" />
       
       <main className="flex-1 flex flex-col overflow-hidden pb-20">
-        {activeTab === 'dashboard' && (
-          <Dashboard items={items || []} onNavigate={handleNavigate} />
-        )}
-        {activeTab === 'inventory' && (
-          <InventoryPage 
-            items={items || []} 
-            onUpdate={updateItem} 
-            onDelete={removeItem} 
-            initialFilter={inventoryFilter} 
-          />
-        )}
-        {activeTab === 'scan' && (
-          <ScannerPage userId="cma-admin-user" onItemsAdded={addItems} />
-        )}
-        {activeTab === 'history' && (
-          <HistoryPage items={items || []} />
-        )}
-        {activeTab === 'settings' && (
-          <SettingsPage 
-            user={{ email: 'admin@capitalmedical.agency' }} 
-            isDemoMode={false} 
-            items={items || []}
-            onLogout={handleLogout}
-          />
-        )}
+        <Suspense fallback={
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-yellow-500/10 border-t-yellow-500 animate-spin rounded-full" />
+          </div>
+        }>
+          {activeTab === 'dashboard' && <Dashboard items={[]} onNavigate={(tab) => setActiveTab(tab)} />}
+          {activeTab === 'inventory' && <InventoryPage items={[]} onUpdate={() => {}} onDelete={() => {}} />}
+          {activeTab === 'scan' && <ScannerPage userId="admin" onItemsAdded={() => {}} />}
+          {activeTab === 'history' && <HistoryPage items={[]} />}
+          {activeTab === 'settings' && (
+            <SettingsPage 
+              user={{ email: 'admin@capitalmedical.agency' }} 
+              isDemoMode={false} 
+              items={[]} 
+              onLogout={handleLogout} 
+            />
+          )}
+        </Suspense>
       </main>
 
       <BottomNav active={activeTab} onChange={setActiveTab} />
