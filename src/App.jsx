@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+```react
+import { useState, useCallback } from 'react' // 'import' must be lowercase
 import { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
 import { useStock } from './hooks/useStock'
@@ -11,7 +12,17 @@ import SettingsPage from './components/SettingsPage'
 import BottomNav from './components/BottomNav'
 import './styles/globals.css'
 
-const DEMO_MODE = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')
+// Safe check for environment variables
+const getDemoMode = () => {
+  try {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    return !url || url.includes('placeholder') || url === "";
+  } catch (e) {
+    return true; // Default to demo if env is missing
+  }
+}
+
+const DEMO_MODE = getDemoMode();
 
 export default function App() {
   const { user, loading } = useAuth()
@@ -21,7 +32,7 @@ export default function App() {
 
   const currentUser = isDemoMode ? { id: 'demo', email: 'demo@cma.local' } : user
 
-  const { items, loading: stockLoading, addItems, updateItem, removeItem, refresh } = useStock(
+  const { items, loading: stockLoading, addItems, updateItem, removeItem } = useStock(
     isDemoMode ? null : currentUser?.id
   )
 
@@ -31,35 +42,36 @@ export default function App() {
   }, [])
 
   const handleScanComplete = useCallback(async (newItems) => {
-    const { error } = await addItems(newItems)
-    if (error) throw error
+    if (addItems) {
+      const { error } = await addItems(newItems)
+      if (error) throw error
+    }
   }, [addItems])
 
-  // Loading state
+  // 1. Loading state (Sirf tab dikhaye jab auth confirm ho raha ho)
   if (loading && !isDemoMode) {
     return (
-      <div className="h-full bg-dark-950 flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
         <div className="relative">
-          <div className="w-16 h-16 rounded-full border-2 border-gold-500/20 border-t-gold-500 animate-spin" />
-          <div className="absolute inset-2 rounded-full border border-gold-500/10 border-t-gold-500/40 animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+          <div className="w-16 h-16 rounded-full border-2 border-yellow-500/20 border-t-yellow-500 animate-spin" />
         </div>
-        <p className="text-gold-500 font-mono text-sm tracking-widest">LOADING CMA...</p>
+        <p className="text-yellow-500 font-mono text-xs tracking-widest uppercase">Initializing Systems...</p>
       </div>
     )
   }
 
-  // Auth check (skip for demo mode)
+  // 2. Auth check (Login dikhaye agar user nahi hai aur demo mode off hai)
   if (!isDemoMode && !user) {
     return (
-      <>
+      <div className="min-h-screen bg-[#050505]">
         <LoginPage onDemoMode={() => setIsDemoMode(true)} />
         <Toaster position="top-center" />
-      </>
+      </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col bg-dark-950">
+    <div className="min-h-screen flex flex-col bg-[#050505] text-[#F5F5F0]">
       <Toaster
         position="top-center"
         toastOptions={{
@@ -68,20 +80,18 @@ export default function App() {
             color: '#F5F5F0',
             border: '1px solid rgba(212,175,55,0.2)',
             borderRadius: '12px',
-            fontFamily: 'DM Sans, sans-serif',
-            fontSize: '14px',
           },
         }}
       />
 
       {/* Main content area */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden pb-20">
         {activeTab === 'dashboard' && (
-          <Dashboard items={items} onNavigate={handleNavigate} />
+          <Dashboard items={items || []} onNavigate={handleNavigate} />
         )}
         {activeTab === 'inventory' && (
           <InventoryPage
-            items={items}
+            items={items || []}
             onUpdate={updateItem}
             onDelete={removeItem}
             initialFilter={inventoryFilter}
@@ -94,13 +104,13 @@ export default function App() {
           />
         )}
         {activeTab === 'history' && (
-          <HistoryPage items={items} />
+          <HistoryPage items={items || []} />
         )}
         {activeTab === 'settings' && (
           <SettingsPage
             user={currentUser}
             isDemoMode={isDemoMode}
-            items={items}
+            items={items || []}
           />
         )}
       </main>
@@ -110,3 +120,5 @@ export default function App() {
     </div>
   )
 }
+
+```
