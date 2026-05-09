@@ -7,17 +7,15 @@ import {
   UserPlus, LogIn, RefreshCw, ShieldCheck 
 } from 'lucide-react';
 
+// Added 'export default' here to fix the build error
 export default function LoginPage({ onDemoMode }) {
-  // Mode can be: 'login', 'signup', 'forgot', 'reset'
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState('login'); // 'login', 'signup', 'forgot', 'reset'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Check if we are in "Reset Password" mode from a link
   useEffect(() => {
-    // Supabase reset links usually come with a type=recovery hash
     const hash = window.location.hash;
     if (hash && hash.includes('type=recovery')) {
       setMode('reset');
@@ -25,7 +23,6 @@ export default function LoginPage({ onDemoMode }) {
     }
   }, []);
 
-  // 1. Handle Login
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -38,7 +35,6 @@ export default function LoginPage({ onDemoMode }) {
     setLoading(false);
   };
 
-  // 2. Handle Signup
   const handleSignup = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -56,12 +52,11 @@ export default function LoginPage({ onDemoMode }) {
     setLoading(false);
   };
 
-  // 3. Handle Forgot Password (Send Link)
   const handleForgot = async (e) => {
     e.preventDefault();
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin, // Redirect back to this same page
+      redirectTo: window.location.origin,
     });
     if (error) {
       toast.error(error.message);
@@ -72,7 +67,6 @@ export default function LoginPage({ onDemoMode }) {
     setLoading(false);
   };
 
-  // 4. Handle New Password (Actual Reset)
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -82,7 +76,6 @@ export default function LoginPage({ onDemoMode }) {
     } else {
       toast.success('Password update ho gaya! Ab login karein.');
       setMode('login');
-      // Clean up the URL hash
       window.history.replaceState(null, null, window.location.pathname);
     }
     setLoading(false);
@@ -119,7 +112,6 @@ export default function LoginPage({ onDemoMode }) {
             } 
             className="space-y-5"
           >
-            {/* Email Input (Not needed for 'reset' mode) */}
             {mode !== 'reset' && (
               <div className="space-y-2">
                 <label className="text-xs font-medium text-gray-400 ml-1">Email Address</label>
@@ -135,7 +127,6 @@ export default function LoginPage({ onDemoMode }) {
               </div>
             )}
 
-            {/* Password Input (Not needed for 'forgot' mode) */}
             {mode !== 'forgot' && (
               <div className="space-y-2">
                 <div className="flex justify-between px-1">
@@ -176,7 +167,6 @@ export default function LoginPage({ onDemoMode }) {
             </button>
           </form>
 
-          {/* Switchers */}
           <div className="mt-8 pt-6 border-t border-white/5 text-center space-y-4">
             {mode !== 'reset' ? (
               <p className="text-gray-500 text-sm">
