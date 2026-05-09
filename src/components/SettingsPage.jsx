@@ -15,13 +15,9 @@ export default function SettingsPage({ user, isDemoMode, items }) {
   }
 
   async function handleLogout() {
-    if (isDemoMode) {
-      toast('Demo mode — no logout needed', { className: 'toast-dark' })
-      return
-    }
-    const { error } = await signOut()
-    if (error) toast.error('Logout failed', { className: 'toast-dark' })
-    else window.location.reload()
+    // localStorage clear karke reload — simple & reliable
+    localStorage.removeItem('cma_admin_auth')
+    window.location.reload()
   }
 
   async function requestNotifications() {
