@@ -1,4 +1,3 @@
-```react
 import { useState, useCallback } from 'react' // 'import' must be lowercase
 import { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
@@ -121,4 +120,3 @@ export default function App() {
   )
 }
 
-```
