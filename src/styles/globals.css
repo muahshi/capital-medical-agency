@@ -1,1 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+@layer base {
+  :root {
+    --gold: #D4AF37;
+    --gold-light: #F0D060;
+    --gold-dark: #B8960C;
+    --bg-primary: #020202;
+    --bg-secondary: #0a0a0a;
+    --bg-card: #111111;
+    --bg-card-hover: #1a1a1a;
+    --border: rgba(212, 175, 55, 0.15);
+    --text-primary: #F5F5F0;
+    --text-secondary: #888888;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    height: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  #root {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@layer components {
+  /* Gold gradient border cards */
+  .card-gold {
+    @apply bg-dark-800 rounded-2xl border border-transparent relative;
+    background-clip: padding-box;
+  }
+
+  .card-gold::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    margin: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(212,175,55,0.4), rgba(212,175,55,0.05), rgba(212,175,55,0.2));
+  }
+
+  /* Status badges */
+  .badge-in-stock {
+    @apply bg-green-900/40 text-green-400 border border-green-500/30 text-xs font-mono px-2 py-0.5 rounded-full;
+  }
+  
+  .badge-low-stock {
+    @apply bg-amber-900/40 text-amber-400 border border-amber-500/30 text-xs font-mono px-2 py-0.5 rounded-full;
+  }
+  
+  .badge-expiring {
+    @apply bg-red-900/40 text-red-400 border border-red-500/30 text-xs font-mono px-2 py-0.5 rounded-full;
+  }
+  
+  .badge-expired {
+    @apply bg-red-950/60 text-red-300 border border-red-800/50 text-xs font-mono px-2 py-0.5 rounded-full;
+  }
+
+  /* Gold button */
+  .btn-gold {
+    @apply bg-gold-500 text-dark-900 font-semibold rounded-xl px-6 py-3 active:scale-95 transition-all duration-150;
+    box-shadow: 0 4px 20px rgba(212, 175, 55, 0.35);
+  }
+
+  .btn-gold:hover {
+    @apply bg-gold-400;
+    box-shadow: 0 4px 30px rgba(212, 175, 55, 0.5);
+  }
+
+  /* Ghost button */
+  .btn-ghost {
+    @apply border border-gold-500/30 text-gold-500 rounded-xl px-6 py-3 active:scale-95 transition-all duration-150;
+  }
+
+  /* Input field */
+  .input-dark {
+    @apply bg-dark-700 border border-dark-500 focus:border-gold-500/50 text-white rounded-xl px-4 py-3 outline-none transition-colors w-full;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* Section title */
+  .section-title {
+    @apply font-display text-gold-500 tracking-widest uppercase text-sm;
+  }
+
+  /* Scrollable content area */
+  .scroll-area {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .scroll-area::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Neon scanner border */
+  .scanner-border {
+    position: relative;
+  }
+
+  .scanner-border::before,
+  .scanner-border::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-color: var(--gold);
+    border-style: solid;
+  }
+
+  .scanner-border::before {
+    top: 0; left: 0;
+    border-width: 2px 0 0 2px;
+    border-radius: 4px 0 0 0;
+  }
+
+  .scanner-border::after {
+    bottom: 0; right: 0;
+    border-width: 0 2px 2px 0;
+    border-radius: 0 0 4px 0;
+  }
+}
+
+/* Camera viewfinder corners */
+.corner-tl { @apply absolute top-0 left-0 w-8 h-8 border-l-2 border-t-2 border-gold-500 rounded-tl-lg; }
+.corner-tr { @apply absolute top-0 right-0 w-8 h-8 border-r-2 border-t-2 border-gold-500 rounded-tr-lg; }
+.corner-bl { @apply absolute bottom-0 left-0 w-8 h-8 border-l-2 border-b-2 border-gold-500 rounded-bl-lg; }
+.corner-br { @apply absolute bottom-0 right-0 w-8 h-8 border-r-2 border-b-2 border-gold-500 rounded-br-lg; }
+
+/* Scan line animation */
+@keyframes scanLine {
+  0% { top: 0%; opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  box-shadow: 0 0 8px var(--gold);
+  animation: scanLine 2s linear infinite;
+}
+
+/* Glow text */
+@keyframes goldGlow {
+  0%, 100% { text-shadow: 0 0 8px rgba(212,175,55,0.4); }
+  50% { text-shadow: 0 0 20px rgba(212,175,55,0.8), 0 0 40px rgba(212,175,55,0.3); }
+}
+
+.text-glow {
+  animation: goldGlow 3s ease-in-out infinite;
+}
+
+/* Bottom nav safe area */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Toast override */
+.toast-dark {
+  background: #111111 !important;
+  color: #F5F5F0 !important;
+  border: 1px solid rgba(212, 175, 55, 0.2) !important;
+}
