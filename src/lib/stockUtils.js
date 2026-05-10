@@ -1,7 +1,11 @@
 import { differenceInDays, parseISO, isValid } from 'date-fns'
 
 /**
- * Get stock status for a medicine item
+ * Smart expiry logic:
+ * - Nikal gayi → 'expired' (Red)
+ * - 180 din (6 mahine) se kam → 'expiring' (Yellow)
+ * - Stock kam hai → 'low_stock'
+ * - Sab theek → 'in_stock'
  */
 export function getStockStatus(item) {
   const today = new Date()
@@ -11,7 +15,7 @@ export function getStockStatus(item) {
     if (isValid(expiry)) {
       const daysToExpiry = differenceInDays(expiry, today)
       if (daysToExpiry < 0) return 'expired'
-      if (daysToExpiry <= 90) return 'expiring'
+      if (daysToExpiry <= 180) return 'expiring'  // 6 mahine
     }
   }
 
@@ -64,9 +68,13 @@ export function formatExpiry(expiryDate) {
   }
 }
 
+// Indian Rupee format: ₹1,23,456
 export function formatCurrency(amount) {
-  if (!amount) return '₹0'
-  return `₹${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  if (!amount && amount !== 0) return '₹0'
+  return `₹${Number(amount).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`
 }
 
 export function calculateTotalStockValue(items) {
@@ -75,7 +83,7 @@ export function calculateTotalStockValue(items) {
   }, 0)
 }
 
-export function getExpiringItems(items, days = 90) {
+export function getExpiringItems(items, days = 180) {
   const today = new Date()
   return items.filter(item => {
     if (!item.expiry_date) return false
@@ -96,13 +104,3 @@ export function getLowStockItems(items) {
 export function getOutOfStockItems(items) {
   return items.filter(item => item.quantity <= 0)
 }
-
-// Demo stock data for offline/demo mode
-export const DEMO_STOCK = [
-  { id: '1', medicine_name: 'Paracetamol 650mg', batch_no: 'PAR65023A', expiry_date: '2026-05-31', quantity: 12450, unit_price: 2.50, low_stock_threshold: 1000, source: 'manual' },
-  { id: '2', medicine_name: 'Amoxicillin 500mg', batch_no: 'AMX50024B', expiry_date: '2025-09-30', quantity: 5320, unit_price: 8.75, low_stock_threshold: 5000, source: 'ai_scan' },
-  { id: '3', medicine_name: 'Cetirizine 10mg', batch_no: 'CET1024C', expiry_date: '2025-07-31', quantity: 2150, unit_price: 3.20, low_stock_threshold: 5000, source: 'ai_scan' },
-  { id: '4', medicine_name: 'Ambroxol Syrup 100ml', batch_no: 'AMBX0424D', expiry_date: '2025-06-30', quantity: 1080, unit_price: 45.00, low_stock_threshold: 200, source: 'manual' },
-  { id: '5', medicine_name: 'Pantoprazole 40mg', batch_no: 'PANT4024E', expiry_date: '2026-11-30', quantity: 3600, unit_price: 5.20, low_stock_threshold: 500, source: 'ai_scan' },
-  { id: '6', medicine_name: 'Metformin 500mg', batch_no: 'MET5024F', expiry_date: '2026-08-31', quantity: 8900, unit_price: 3.20, low_stock_threshold: 1000, source: 'manual' },
-]
