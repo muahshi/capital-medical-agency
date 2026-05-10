@@ -1,4 +1,3 @@
-```react
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -85,4 +84,3 @@ export const LoginPage = ({ onLoginSuccess }) => {
   );
 };
 
-```
