@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  TrendingUp, AlertTriangle, Package, FileText,
+  TrendingUp, AlertTriangle, Package, FileText, Bell,
   ChevronRight, Clock, AlertCircle, FileOutput, X, Check
 } from 'lucide-react'
 import {
@@ -10,7 +10,7 @@ import {
 } from '../lib/stockUtils'
 import { differenceInDays, parseISO } from 'date-fns'
 
-export default function Dashboard({ items, onNavigate }) {
+export default function Dashboard({ items, orders = [], pendingOrderCount = 0, onNavigate, onMarkOrderProcessed }) {
   const [returnNote, setReturnNote] = useState(null) // null | item
 
   const stats = useMemo(() => {
@@ -34,6 +34,23 @@ export default function Dashboard({ items, onNavigate }) {
         <p className="text-gray-500 text-xs font-mono tracking-widest uppercase">Inventory Overview</p>
         <h1 className="text-3xl font-bold text-white tracking-widest">DASHBOARD</h1>
       </div>
+
+      {/* New Order Notification Banner */}
+      {pendingOrderCount > 0 && (
+        <button
+          onClick={() => {
+            const el = document.getElementById('recent-orders')
+            el?.scrollIntoView({ behavior: 'smooth' })
+          }}
+          className="w-full flex items-center gap-3 bg-blue-950/40 border border-blue-500/30 rounded-2xl px-4 py-3 active:scale-[0.98] transition-all"
+        >
+          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+          <p className="flex-1 text-blue-300 text-sm font-mono">
+            🔔 {pendingOrderCount} New Order{pendingOrderCount > 1 ? 's' : ''} from Field Team!
+          </p>
+          <ChevronRight className="w-4 h-4 text-blue-400" />
+        </button>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 gap-3">
@@ -131,6 +148,11 @@ export default function Dashboard({ items, onNavigate }) {
           )}
         </div>
       </div>
+
+      {/* Recent Orders from Salesmen */}
+      {orders.length > 0 && (
+        <RecentOrdersSection orders={orders} onMarkProcessed={onMarkOrderProcessed} />
+      )}
 
       {/* Return Note Modal */}
       {returnNote && (
@@ -309,6 +331,65 @@ function StockRow({ item, isLast }) {
       </div>
       <span className="text-white font-mono text-sm">{(item.quantity || 0).toLocaleString('en-IN')}</span>
       <span className={getStatusClass(status)}>{getStatusLabel(status)}</span>
+    </div>
+  )
+}
+
+// ── Recent Orders Component ──
+export function RecentOrdersSection({ orders, onMarkProcessed }) {
+  const pending = orders.filter(o => o.status === 'pending')
+  const recent = orders.slice(0, 6)
+
+  if (orders.length === 0) return null
+
+  return (
+    <div id="recent-orders" className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Bell className="w-4 h-4 text-blue-400" />
+          <span className="text-blue-400 text-[10px] font-mono uppercase tracking-widest font-bold">
+            FIELD ORDERS {pending.length > 0 && `(${pending.length} PENDING)`}
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-[#0d0d0d] rounded-2xl overflow-hidden border border-blue-500/10">
+        {recent.map((order, i) => (
+          <div key={order.id} className={`px-4 py-3 ${i < recent.length - 1 ? 'border-b border-white/5' : ''}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-white text-sm font-semibold truncate">{order.customer_name}</p>
+                  <span className={`shrink-0 text-[9px] font-mono px-1.5 py-0.5 rounded-md ${
+                    order.status === 'pending'
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : order.status === 'processed'
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-gray-500/20 text-gray-500'
+                  }`}>
+                    {order.status.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-gray-500 text-[11px] font-mono">
+                  {order.salesman_name} · {order.items?.length} items · {new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+                <p className="text-gray-600 text-[11px] mt-0.5 truncate">
+                  {order.items?.slice(0, 2).map(i => i.medicine_name).join(', ')}
+                  {order.items?.length > 2 && ` +${order.items.length - 2} more`}
+                </p>
+              </div>
+              {order.status === 'pending' && onMarkProcessed && (
+                <button
+                  onClick={() => onMarkProcessed(order.id)}
+                  className="shrink-0 text-[10px] font-mono bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-1.5 rounded-lg active:scale-95 transition-all"
+                >
+                  DONE
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
