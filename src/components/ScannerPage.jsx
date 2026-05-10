@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Camera, Upload, X, Check, AlertCircle, Zap, RotateCcw, ChevronLeft } from 'lucide-react'
 import { scanBillWithGroq, fileToBase64, getDemoScanResult } from '../lib/groq'
-import { formatExpiry, getStockStatus } from '../lib/stockUtils'
+import { formatExpiry } from '../lib/stockUtils'
 import toast from 'react-hot-toast'
 
 const DEMO_MODE = !import.meta.env.VITE_GROQ_API_KEY
@@ -22,18 +22,25 @@ export default function ScannerPage({ onItemsAdded, onBack }) {
   const [scanResults, setScanResults] = useState([])
   const [selectedItems, setSelectedItems] = useState(new Set())
   const [error, setError] = useState(null)
+  const [imgError, setImgError] = useState(false)
 
   const fileInputRef = useRef(null)
   const cameraInputRef = useRef(null)
 
   const handleImageSelect = useCallback((file) => {
-    if (!file) return
-    // Revoke old URL
-    setImagePreview(prev => { if (prev) URL.revokeObjectURL(prev); return null })
-
-    const previewUrl = URL.createObjectURL(file)
+    if (!file || !file.type.startsWith('image/')) {
+      toast.error('Valid image file select karo')
+      return
+    }
+    // Revoke old object URL to free memory
+    setImagePreview(prev => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return null
+    })
+    setImgError(false)
+    const url = URL.createObjectURL(file)
     setImageFile(file)
-    setImagePreview(previewUrl)
+    setImagePreview(url)
     setError(null)
     setStage(STAGES.PREVIEW)
   }, [])
@@ -50,7 +57,7 @@ export default function ScannerPage({ onItemsAdded, onBack }) {
         const base64 = await fileToBase64(imageFile)
         results = await scanBillWithGroq(base64, imageFile.type || 'image/jpeg')
       }
-      if (!results || !results.length) throw new Error('No medicines detected. Try a clearer photo.')
+      if (!results || !results.length) throw new Error('No medicines detected. Clearer photo try karo.')
       setScanResults(results)
       setSelectedItems(new Set(results.map((_, i) => i)))
       setStage(STAGES.RESULTS)
@@ -75,9 +82,14 @@ export default function ScannerPage({ onItemsAdded, onBack }) {
     if (!toSave.length) { toast.error('Kam se kam ek item select karo'); return }
     setStage(STAGES.SAVING)
     try {
-      await onItemsAdded(toSave)
+      const result = await onItemsAdded(toSave)
       setStage(STAGES.DONE)
-      toast.success(`✅ ${toSave.length} items inventory mein add ho gaye!`, { duration: 4000 })
+      const added = result?.added || toSave.length
+      const updated = result?.updated || 0
+      const msg = updated > 0
+        ? `✅ ${added} add, ${updated} quantity update!`
+        : `✅ ${added} items inventory mein add ho gaye!`
+      toast.success(msg, { duration: 4000 })
     } catch {
       toast.error('Save failed')
       setStage(STAGES.RESULTS)
@@ -85,11 +97,15 @@ export default function ScannerPage({ onItemsAdded, onBack }) {
   }, [scanResults, selectedItems, onItemsAdded])
 
   const reset = useCallback(() => {
-    setImagePreview(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+    setImagePreview(prev => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return null
+    })
     setImageFile(null)
     setScanResults([])
     setSelectedItems(new Set())
     setError(null)
+    setImgError(false)
     setStage(STAGES.IDLE)
   }, [])
 
@@ -134,6 +150,8 @@ export default function ScannerPage({ onItemsAdded, onBack }) {
         {stage === STAGES.PREVIEW && (
           <PreviewState
             imagePreview={imagePreview}
+            imgError={imgError}
+            onImgError={() => setImgError(true)}
             onScan={handleScan}
             onRetake={reset}
             error={error}
@@ -151,10 +169,11 @@ export default function ScannerPage({ onItemsAdded, onBack }) {
           />
         )}
         {stage === STAGES.SAVING && <SavingState count={selectedItems.size} />}
-        {stage === STAGES.DONE && <DoneState count={[...selectedItems].length} onScanMore={reset} onBack={onBack} />}
+        {stage === STAGES.DONE && (
+          <DoneState count={[...selectedItems].length} onScanMore={reset} onBack={onBack} />
+        )}
       </div>
 
-      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
@@ -177,7 +196,6 @@ export default function ScannerPage({ onItemsAdded, onBack }) {
 function IdleState({ onCamera, onUpload, demoMode }) {
   return (
     <div className="space-y-4 pt-2">
-      {/* Viewfinder */}
       <div className="relative w-full aspect-[4/3] rounded-3xl overflow-hidden flex items-center justify-center bg-[#0a0a1a] border border-yellow-500/20">
         <div className="text-center space-y-3">
           <div className="w-20 h-20 mx-auto rounded-2xl bg-white/5 border border-yellow-500/20 flex items-center justify-center">
@@ -200,7 +218,6 @@ function IdleState({ onCamera, onUpload, demoMode }) {
         <Camera className="w-5 h-5" />
         CAMERA SE CAPTURE KARO
       </button>
-
       <button onClick={onUpload} className="w-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-white font-semibold py-4 rounded-2xl flex items-center justify-center gap-3 border border-white/10">
         <Upload className="w-5 h-5" />
         GALLERY SE UPLOAD KARO
@@ -217,35 +234,40 @@ function IdleState({ onCamera, onUpload, demoMode }) {
   )
 }
 
-function PreviewState({ imagePreview, onScan, onRetake, error, demoMode }) {
+function PreviewState({ imagePreview, imgError, onImgError, onScan, onRetake, error, demoMode }) {
   return (
     <div className="space-y-4 pt-2">
-      {/* Image Preview */}
-      <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-[#0a0a0a] border border-white/10">
-        {imagePreview ? (
+      <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-[#0d0d0d] border border-white/10">
+        {imagePreview && !imgError ? (
           <>
             <img
               src={imagePreview}
               alt="Bill preview"
-              className="w-full h-full object-contain"
-              onError={(e) => { e.target.style.display = 'none' }}
+              className="w-full h-full object-cover"
+              onError={onImgError}
             />
-            <div className="absolute top-3 right-3 bg-green-900/80 border border-green-500/40 rounded-lg px-2 py-1">
-              <p className="text-green-400 text-[10px] font-mono">READY TO SCAN</p>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
+            <div className="absolute top-3 right-3 bg-green-900/90 border border-green-500/50 rounded-lg px-2 py-1 backdrop-blur-sm">
+              <p className="text-green-400 text-[10px] font-mono font-bold">READY TO SCAN</p>
             </div>
           </>
+        ) : imgError ? (
+          // Fallback — image load nahi hui toh bhi scan allow karo
+          <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+            <div className="w-16 h-16 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+              <Camera className="w-8 h-8 text-yellow-500/60" />
+            </div>
+            <p className="text-gray-400 text-sm">Image captured ✓</p>
+            <p className="text-gray-600 text-xs">Preview render nahi hua, par scan ho sakta hai</p>
+          </div>
         ) : demoMode ? (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center space-y-2">
               <div className="text-4xl">🧾</div>
-              <p className="text-gray-500 text-sm">Demo: Image zaruri nahi</p>
+              <p className="text-gray-500 text-sm">Demo mode — image optional</p>
             </div>
           </div>
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <p className="text-gray-500 text-sm">Preview load nahi hua</p>
-          </div>
-        )}
+        ) : null}
       </div>
 
       {error && (
@@ -259,7 +281,6 @@ function PreviewState({ imagePreview, onScan, onRetake, error, demoMode }) {
         <Zap className="w-5 h-5" />
         {demoMode ? 'DEMO SCAN CHALAO' : 'AI SE SCAN KARO'}
       </button>
-
       <button onClick={onRetake} className="w-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-white font-semibold py-3 rounded-2xl flex items-center justify-center gap-3 border border-white/10">
         <RotateCcw className="w-4 h-4" />
         Dobara lelo / Change karo
