@@ -16,7 +16,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [inventoryFilter, setInventoryFilter] = useState('all')
 
-  // ── Auth: sirf localStorage, koi Supabase nahi ──
+  // ── Auth: sirf localStorage ──
   useEffect(() => {
     try {
       if (localStorage.getItem('cma_admin_auth') === 'true') {
@@ -26,17 +26,23 @@ export default function App() {
     setIsLoading(false)
   }, [])
 
-  // ── Hardware back button (PWA) ──
+  // ── PWA Hardware Back Button ──
+  // Jab bhi tab change ho, history mein push karo
+  // Jab hardware back press ho, dashboard par le jao
   useEffect(() => {
-    const onBack = (e) => {
-      if (activeTab !== 'dashboard') {
-        e.preventDefault()
-        setActiveTab('dashboard')
-      }
+    // Initial state push
+    window.history.replaceState({ tab: 'dashboard' }, '')
+
+    const handlePopState = (e) => {
+      const prevTab = e.state?.tab || 'dashboard'
+      setActiveTab(prevTab)
+      // Always push a fresh state so back button keeps working
+      window.history.pushState({ tab: prevTab }, '')
     }
-    window.addEventListener('popstate', onBack)
-    return () => window.removeEventListener('popstate', onBack)
-  }, [activeTab])
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   const handleLogout = () => {
     localStorage.removeItem('cma_admin_auth')
@@ -44,19 +50,23 @@ export default function App() {
   }
 
   const handleNavigate = useCallback((tab, filter) => {
+    window.history.pushState({ tab }, '')
     setActiveTab(tab)
     if (filter) setInventoryFilter(filter)
   }, [])
 
   const handleTabChange = useCallback((tab) => {
-    // Push state so hardware back button works
-    window.history.pushState({ tab }, '', '')
+    window.history.pushState({ tab }, '')
     setActiveTab(tab)
   }, [])
 
-  const { items, loading: stockLoading, addItems, updateItem, removeItem } = useStock()
+  const goBack = useCallback(() => {
+    window.history.pushState({ tab: 'dashboard' }, '')
+    setActiveTab('dashboard')
+  }, [])
 
-  // ── Loading spinner ──
+  const { items, loading: stockLoading, addItems, updateItem, removeItem, clearAllData } = useStock()
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
@@ -65,7 +75,6 @@ export default function App() {
     )
   }
 
-  // ── Login screen ──
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#050505]">
@@ -75,7 +84,6 @@ export default function App() {
     )
   }
 
-  // ── Main App ──
   return (
     <div className="min-h-screen flex flex-col bg-[#050505] text-[#F5F5F0]">
       <Toaster position="top-center" />
@@ -90,20 +98,17 @@ export default function App() {
             onUpdate={updateItem}
             onDelete={removeItem}
             initialFilter={inventoryFilter}
-            onBack={() => handleTabChange('dashboard')}
+            onBack={goBack}
           />
         )}
         {activeTab === 'scan' && (
           <ScannerPage
             onItemsAdded={addItems}
-            onBack={() => handleTabChange('dashboard')}
+            onBack={goBack}
           />
         )}
         {activeTab === 'history' && (
-          <HistoryPage
-            items={items}
-            onBack={() => handleTabChange('dashboard')}
-          />
+          <HistoryPage items={items} onBack={goBack} />
         )}
         {activeTab === 'settings' && (
           <SettingsPage
@@ -111,7 +116,8 @@ export default function App() {
             isDemoMode={false}
             items={items}
             onLogout={handleLogout}
-            onBack={() => handleTabChange('dashboard')}
+            onBack={goBack}
+            onClearData={clearAllData}
           />
         )}
       </main>
