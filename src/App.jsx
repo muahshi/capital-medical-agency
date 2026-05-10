@@ -16,15 +16,27 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [inventoryFilter, setInventoryFilter] = useState('all')
 
-  // Auth check — sirf localStorage
+  // ── Auth: sirf localStorage, koi Supabase nahi ──
   useEffect(() => {
     try {
-      const authStatus = localStorage.getItem('cma_admin_auth')
-      if (authStatus === 'true') setIsAuthenticated(true)
+      if (localStorage.getItem('cma_admin_auth') === 'true') {
+        setIsAuthenticated(true)
+      }
     } catch (e) {}
-    const timer = setTimeout(() => setIsLoading(false), 300)
-    return () => clearTimeout(timer)
+    setIsLoading(false)
   }, [])
+
+  // ── Hardware back button (PWA) ──
+  useEffect(() => {
+    const onBack = (e) => {
+      if (activeTab !== 'dashboard') {
+        e.preventDefault()
+        setActiveTab('dashboard')
+      }
+    }
+    window.addEventListener('popstate', onBack)
+    return () => window.removeEventListener('popstate', onBack)
+  }, [activeTab])
 
   const handleLogout = () => {
     localStorage.removeItem('cma_admin_auth')
@@ -36,9 +48,15 @@ export default function App() {
     if (filter) setInventoryFilter(filter)
   }, [])
 
-  // Stock — localStorage se, koi Supabase nahi
+  const handleTabChange = useCallback((tab) => {
+    // Push state so hardware back button works
+    window.history.pushState({ tab }, '', '')
+    setActiveTab(tab)
+  }, [])
+
   const { items, loading: stockLoading, addItems, updateItem, removeItem } = useStock()
 
+  // ── Loading spinner ──
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
@@ -47,6 +65,7 @@ export default function App() {
     )
   }
 
+  // ── Login screen ──
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#050505]">
@@ -56,6 +75,7 @@ export default function App() {
     )
   }
 
+  // ── Main App ──
   return (
     <div className="min-h-screen flex flex-col bg-[#050505] text-[#F5F5F0]">
       <Toaster position="top-center" />
@@ -70,13 +90,20 @@ export default function App() {
             onUpdate={updateItem}
             onDelete={removeItem}
             initialFilter={inventoryFilter}
+            onBack={() => handleTabChange('dashboard')}
           />
         )}
         {activeTab === 'scan' && (
-          <ScannerPage userId="admin-cma" onItemsAdded={addItems} />
+          <ScannerPage
+            onItemsAdded={addItems}
+            onBack={() => handleTabChange('dashboard')}
+          />
         )}
         {activeTab === 'history' && (
-          <HistoryPage items={items} />
+          <HistoryPage
+            items={items}
+            onBack={() => handleTabChange('dashboard')}
+          />
         )}
         {activeTab === 'settings' && (
           <SettingsPage
@@ -84,11 +111,12 @@ export default function App() {
             isDemoMode={false}
             items={items}
             onLogout={handleLogout}
+            onBack={() => handleTabChange('dashboard')}
           />
         )}
       </main>
 
-      <BottomNav active={activeTab} onChange={setActiveTab} />
+      <BottomNav active={activeTab} onChange={handleTabChange} />
     </div>
   )
 }
