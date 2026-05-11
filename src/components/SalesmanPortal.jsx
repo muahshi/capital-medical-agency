@@ -6,13 +6,7 @@ import {
   Activity, ChevronDown, Plus, Minus, Trash2, Sparkles
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const SALESMAN_CODES = {
-  SALES1: { name: 'Rahul', city: 'Bhopal', avatar: 'R', color: '#F59E0B' },
-  SALES2: { name: 'Vikram', city: 'Indore', avatar: 'V', color: '#3B82F6' },
-  SALES3: { name: 'Suresh', city: 'Jabalpur', avatar: 'S', color: '#10B981' },
-}
+import { loginWithCode } from '../lib/supabase'
 
 const STORAGE_KEY = 'cma_salesman_orders'
 const MY_ORDERS_KEY = 'cma_my_orders_'
@@ -177,15 +171,34 @@ export default function SalesmanPortal({ onOrderSubmit }) {
     }
   }, [salesman])
 
-  // ── Login ──
-  const handleLogin = () => {
-    const code = codeInput.trim().toUpperCase()
-    const info = SALESMAN_CODES[code]
-    if (info) {
-      setSalesman({ code, ...info })
+  // ── Login — Supabase DB se verify ──
+  const handleLogin = async () => {
+    const code = codeInput.trim()
+    if (!code) return
+    setStage('logging_in')
+    try {
+      const result = await loginWithCode(code)
+      if (!result.success) {
+        toast.error(result.error || 'Galat code! Admin se sahi code lo.')
+        setStage('login')
+        return
+      }
+      if (result.user.role !== 'salesman') {
+        toast.error('Yeh salesman portal hai. Admin panel alag hai.')
+        setStage('login')
+        return
+      }
+      setSalesman({
+        code,
+        name:   result.user.label,
+        city:   result.user.city   || '',
+        avatar: result.user.avatar || result.user.label[0].toUpperCase(),
+        color:  result.user.color  || '#F59E0B',
+      })
       setStage('main')
-    } else {
-      toast.error('Galat code! CMA admin se lelo.')
+    } catch (e) {
+      toast.error('Network error. Internet check karo.')
+      setStage('login')
     }
   }
 
@@ -315,6 +328,18 @@ export default function SalesmanPortal({ onOrderSubmit }) {
   // ════════════════════════════════════════════════════════
   // ── LOGIN SCREEN ──
   // ════════════════════════════════════════════════════════
+  if (stage === 'logging_in') {
+    return (
+      <div style={styles.screen}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid rgba(245,158,11,0.2)', borderTopColor: '#F59E0B', animation: 'spin 1s linear infinite' }} />
+          <div style={{ color: '#6B7280', fontSize: 13, fontFamily: 'monospace', letterSpacing: 2 }}>VERIFYING CODE...</div>
+        </div>
+        <style>{'@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }'}</style>
+      </div>
+    )
+  }
+
   if (stage === 'login') {
     return (
       <div style={styles.screen}>
@@ -346,16 +371,7 @@ export default function SalesmanPortal({ onOrderSubmit }) {
             </button>
           </div>
 
-          {/* Salesman list */}
-          <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {Object.entries(SALESMAN_CODES).map(([code, info]) => (
-              <button key={code} style={styles.salesmanPill} onClick={() => { setCodeInput(code); }}>
-                <div style={{ ...styles.avatarDot, background: info.color }}>{info.avatar}</div>
-                <span style={{ color: '#9CA3AF', fontSize: 13 }}>{info.name} — {info.city}</span>
-                <span style={{ color: '#4B5563', fontSize: 11, marginLeft: 'auto', fontFamily: 'monospace' }}>{code}</span>
-              </button>
-            ))}
-          </div>
+          {/* Salesman list hidden — codes are private, given by admin */}
         </div>
       </div>
     )
