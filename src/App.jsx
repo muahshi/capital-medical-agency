@@ -99,7 +99,7 @@ export default function App() {
   }, [])
 
   const handleTabChange = useCallback((tab) => {
-    window.history.pushState({ tab }, '')\
+    window.history.pushState({ tab }, '')
     setActiveTab(tab)
   }, [])
 
