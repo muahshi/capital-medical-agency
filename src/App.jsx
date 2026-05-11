@@ -1,3 +1,4 @@
+// ─── src/App.jsx ─────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useCallback } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { LoginPage } from './components/LoginPage'
@@ -11,34 +12,76 @@ import BottomNav from './components/BottomNav'
 import SalesmanPortal from './components/SalesmanPortal'
 import { useStock } from './hooks/useStock'
 import { useOrders } from './hooks/useOrders'
+import { verifySession, logoutSession } from './lib/supabase'
 import './styles/globals.css'
 
-// ── Route detection ──
+// ── Route detection ────────────────────────────────────────────────────────────
 function getCurrentRoute() {
   const path = window.location.pathname
-  if (path === '/salesman' || path.startsWith('/salesman')) return 'salesman'
-  return 'admin'
+  return (path === '/salesman' || path.startsWith('/salesman')) ? 'salesman' : 'admin'
 }
 
+// ── Auth states ────────────────────────────────────────────────────────────────
+// null    = checking
+// false   = not logged in
+// object  = { role, label, token, ... }
+const SESSION_RECHECK_MS = 5 * 60 * 1000   // 5 min pe recheck
+
 export default function App() {
-  const [route] = useState(getCurrentRoute)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [route]             = useState(getCurrentRoute)
+  const [session, setSession]           = useState(null)          // null=loading
+  const [sessionChecked, setSessionChecked] = useState(false)
+  const [activeTab, setActiveTab]       = useState('dashboard')
   const [inventoryFilter, setInventoryFilter] = useState('all')
 
   const { items, loading: stockLoading, addItems, updateItem, removeItem, clearAllData } = useStock()
   const { orders, addOrder, markOrderProcessed } = useOrders()
 
-  // ── Auth check ──
-  useEffect(() => {
+  // ── Global session check ───────────────────────────────────────────────────
+  const checkSession = useCallback(async () => {
     try {
-      if (localStorage.getItem('cma_admin_auth') === 'true') setIsAuthenticated(true)
-    } catch (e) {}
-    setIsLoading(false)
+      const result = await verifySession()
+      if (result.valid) {
+        setSession(result.user)
+      } else {
+        setSession(false)
+        // Reason-specific message
+        if (result.reason === 'deactivated') {
+          alert('Aapka access band kar diya gaya hai. Admin se contact karo.')
+        } else if (result.reason === 'expired') {
+          alert('Session expire ho gaya. Dobara login karo.')
+        }
+      }
+    } catch (err) {
+      console.error('[CMA] Session check failed:', err)
+      // Network error pe existing session rakh lo, crash mat karo
+      const existing = localStorage.getItem('cma_session_token')
+      setSession(existing ? { token: existing, role: 'unknown' } : false)
+    } finally {
+      setSessionChecked(true)
+    }
   }, [])
 
-  // ── PWA back button ──
+  // Initial check
+  useEffect(() => {
+    checkSession()
+  }, [checkSession])
+
+  // Periodic recheck (auto-lock agar DB pe key change ho)
+  useEffect(() => {
+    if (!session) return
+    const interval = setInterval(checkSession, SESSION_RECHECK_MS)
+    return () => clearInterval(interval)
+  }, [session, checkSession])
+
+  // App focus pe recheck (tab switch karne par)
+  useEffect(() => {
+    const onFocus = () => { if (session) checkSession() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [session, checkSession])
+
+  // ── PWA back button ────────────────────────────────────────────────────────
   useEffect(() => {
     window.history.replaceState({ tab: 'dashboard' }, '')
     const handlePop = (e) => {
@@ -56,7 +99,7 @@ export default function App() {
   }, [])
 
   const handleTabChange = useCallback((tab) => {
-    window.history.pushState({ tab }, '')
+    window.history.pushState({ tab }, '')\
     setActiveTab(tab)
   }, [])
 
@@ -66,12 +109,28 @@ export default function App() {
     if (filter) setInventoryFilter(filter)
   }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem('cma_admin_auth')
+  const handleLogout = async () => {
+    await logoutSession()
+    setSession(false)
     window.location.reload()
   }
 
-  // ── Salesman route — no auth needed ──
+  const handleLoginSuccess = (user) => {
+    setSession(user)
+  }
+
+  // ── Loading spinner ────────────────────────────────────────────────────────
+  if (!sessionChecked) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
+        <div className="w-12 h-12 border-2 border-yellow-500/20 border-t-yellow-500 animate-spin rounded-full" />
+        <p className="text-gray-600 text-xs font-mono tracking-widest uppercase">Verifying session...</p>
+      </div>
+    )
+  }
+
+  // ── Salesman route ─────────────────────────────────────────────────────────
+  // SalesmanPortal apna auth handle karta hai (code se)
   if (route === 'salesman') {
     return (
       <div className="min-h-screen bg-[#050505]">
@@ -81,28 +140,19 @@ export default function App() {
     )
   }
 
-  // ── Loading ──
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-yellow-500/20 border-t-yellow-500 animate-spin rounded-full" />
-      </div>
-    )
-  }
-
-  // ── Admin Login ──
-  if (!isAuthenticated) {
+  // ── Admin login ────────────────────────────────────────────────────────────
+  if (!session || session === false) {
     return (
       <div className="min-h-screen bg-[#050505]">
         <Toaster position="top-center" />
-        <LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />
+        <LoginPage onLoginSuccess={handleLoginSuccess} />
       </div>
     )
   }
 
   const pendingOrderCount = orders.filter(o => o.status === 'pending').length
 
-  // ── Admin App ──
+  // ── Admin App ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col bg-[#050505] text-[#F5F5F0]">
       <Toaster position="top-center" />
@@ -131,9 +181,12 @@ export default function App() {
         )}
         {activeTab === 'settings' && (
           <SettingsPage
-            user={{ email: 'admin@capitalmedical.agency', role: 'Owner' }}
-            isDemoMode={false} items={items}
-            onLogout={handleLogout} onBack={goBack} onClearData={clearAllData}
+            user={{ label: session?.label || 'Admin', role: 'Admin' }}
+            isDemoMode={false}
+            items={items}
+            onLogout={handleLogout}
+            onBack={goBack}
+            onClearData={clearAllData}
           />
         )}
       </main>
