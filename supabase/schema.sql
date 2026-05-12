@@ -23,13 +23,15 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS retailer_stock (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   retailer_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
   medicine_name TEXT NOT NULL,
+  category TEXT DEFAULT 'General' CHECK (category IN ('Antibiotic', 'Painkiller', 'Vitamin', 'Syrup', 'Injection', 'General')),
   batch_no TEXT,
   expiry_date DATE,
   quantity INTEGER NOT NULL DEFAULT 0,
   low_stock_threshold INTEGER DEFAULT 100,
   unit_price DECIMAL(10,2) DEFAULT 0,
-  source TEXT DEFAULT 'manual' CHECK (source IN ('manual', 'ai_scan', 'order')),
+  source TEXT DEFAULT 'manual' CHECK (source IN ('manual', 'ai_scan', 'order', 'bulk_import')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (retailer_id, medicine_name, batch_no)
@@ -45,10 +47,28 @@ CREATE TABLE IF NOT EXISTS scan_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── SUPPLIERS (Phase 1) ────────────────────────────────────
+CREATE TABLE IF NOT EXISTS suppliers (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  retailer_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  supplier_name TEXT NOT NULL,
+  contact_person TEXT,
+  phone TEXT,
+  email TEXT,
+  address TEXT,
+  gst_number TEXT,
+  outstanding_balance DECIMAL(10,2) DEFAULT 0,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (retailer_id, supplier_name)
+);
+
 -- ── ROW LEVEL SECURITY ─────────────────────────────────────
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE retailer_stock ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scan_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
 
 -- Profiles
 CREATE POLICY "Users manage own profile" ON profiles FOR ALL USING (id = auth.uid());
@@ -58,6 +78,9 @@ CREATE POLICY "Retailers manage own stock" ON retailer_stock FOR ALL USING (reta
 
 -- Scan logs
 CREATE POLICY "Users see own scan logs" ON scan_logs FOR ALL USING (user_id = auth.uid());
+
+-- Suppliers
+CREATE POLICY "Retailers manage own suppliers" ON suppliers FOR ALL USING (retailer_id = auth.uid());
 
 -- ── AUTO-CREATE PROFILE ON SIGNUP ──────────────────────────
 CREATE OR REPLACE FUNCTION handle_new_user()
