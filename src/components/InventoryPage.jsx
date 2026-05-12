@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
-import { Search, Filter, Plus, Trash2, Edit2, X, Check, ChevronDown, SortAsc } from 'lucide-react'
+import { Search, Filter, Plus, Trash2, Edit2, X, Check, ChevronDown, SortAsc, Upload } from 'lucide-react'
 import {
   getStockStatus, getStatusClass, getStatusLabel,
   formatExpiry, formatCurrency, getDaysToExpiry,
   getExpiringItems, getLowStockItems
 } from '../lib/stockUtils'
 import toast from 'react-hot-toast'
+import BulkInventoryImport from './BulkInventoryImport'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -14,12 +15,22 @@ const FILTERS = [
   { id: 'expired', label: 'Expired' },
 ]
 
-export default function InventoryPage({ items, onUpdate, onDelete, initialFilter }) {
+export default function InventoryPage({ items, onUpdate, onDelete, initialFilter, suppliers = [], onBulkImport }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState(initialFilter || 'all')
   const [editingId, setEditingId] = useState(null)
   const [editData, setEditData] = useState({})
   const [confirmDelete, setConfirmDelete] = useState(null)
+  
+  // Phase 1: Advanced Filters
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [expiryRangeFilter, setExpiryRangeFilter] = useState('all')
+  const [supplierFilter, setSupplierFilter] = useState('all')
+  const [showBulkImport, setShowBulkImport] = useState(false)
+
+  const categories = ['all', ...new Set(items.map(i => i.category).filter(Boolean))]
+  const supplierOptions = [{ id: 'all', name: 'All Suppliers' }, ...suppliers]
 
   const filtered = useMemo(() => {
     let list = [...items]
@@ -28,6 +39,32 @@ export default function InventoryPage({ items, onUpdate, onDelete, initialFilter
     if (filter === 'low') list = getLowStockItems(list)
     else if (filter === 'expiring') list = getExpiringItems(list, 90)
     else if (filter === 'expired') list = list.filter(i => getStockStatus(i) === 'expired')
+
+    // Phase 1: Category filter
+    if (categoryFilter !== 'all') {
+      list = list.filter(i => i.category === categoryFilter)
+    }
+
+    // Phase 1: Expiry range filter
+    if (expiryRangeFilter !== 'all') {
+      const now = new Date()
+      list = list.filter(i => {
+        if (!i.expiry_date) return false
+        const days = getDaysToExpiry(i.expiry_date)
+        if (days === null) return false
+        
+        if (expiryRangeFilter === '30days') return days <= 30
+        if (expiryRangeFilter === '90days') return days <= 90 && days > 30
+        if (expiryRangeFilter === '6months') return days <= 180 && days > 90
+        if (expiryRangeFilter === 'expired') return days < 0
+        return true
+      })
+    }
+
+    // Phase 1: Supplier filter
+    if (supplierFilter !== 'all') {
+      list = list.filter(i => i.supplier_id === supplierFilter)
+    }
 
     // Apply search
     if (search.trim()) {
@@ -43,7 +80,7 @@ export default function InventoryPage({ items, onUpdate, onDelete, initialFilter
     list.sort((a, b) => (priority[getStockStatus(a)] || 4) - (priority[getStockStatus(b)] || 4))
 
     return list
-  }, [items, filter, search])
+  }, [items, filter, search, categoryFilter, expiryRangeFilter, supplierFilter])
 
   function startEdit(item) {
     setEditingId(item.id)
@@ -76,12 +113,26 @@ export default function InventoryPage({ items, onUpdate, onDelete, initialFilter
     setConfirmDelete(null)
   }
 
+  const activeAdvancedFiltersCount = 
+    (categoryFilter !== 'all' ? 1 : 0) +
+    (expiryRangeFilter !== 'all' ? 1 : 0) +
+    (supplierFilter !== 'all' ? 1 : 0)
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
       {/* Header */}
-      <div className="px-4 pt-4 pb-2">
-        <p className="text-dark-400 text-xs font-mono tracking-widest uppercase">Real-time</p>
-        <h1 className="font-display text-3xl text-white tracking-widest">INVENTORY</h1>
+      <div className="px-4 pt-4 pb-2 flex items-end justify-between">
+        <div>
+          <p className="text-dark-400 text-xs font-mono tracking-widest uppercase">Real-time</p>
+          <h1 className="font-display text-3xl text-white tracking-widest">INVENTORY</h1>
+        </div>
+        <button
+          onClick={() => setShowBulkImport(true)}
+          className="px-3 py-1.5 bg-gold-500/10 border border-gold-500/30 rounded-lg text-xs text-gold-500 hover:bg-gold-500/20 transition-all flex items-center gap-1.5"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          Bulk Import
+        </button>
       </div>
 
       {/* Search */}
@@ -132,8 +183,89 @@ export default function InventoryPage({ items, onUpdate, onDelete, initialFilter
               </button>
             )
           })}
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono transition-all ${
+              activeAdvancedFiltersCount > 0
+                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40'
+                : 'bg-dark-700 text-dark-300 border border-dark-600'
+            }`}
+          >
+            <Filter className="w-3 h-3" />
+            Filters
+            {activeAdvancedFiltersCount > 0 && (
+              <span className="text-[10px] bg-blue-500 text-white rounded-full px-1.5">{activeAdvancedFiltersCount}</span>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showAdvancedFilters && (
+        <div className="px-4 pb-3 space-y-3 border-b border-dark-700">
+          {/* Category Filter */}
+          <div>
+            <label className="text-dark-400 text-xs font-mono uppercase block mb-1.5">Category</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full input-dark text-sm bg-dark-800"
+            >
+              {categories.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat === 'all' ? 'All Categories' : cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Expiry Range Filter */}
+          <div>
+            <label className="text-dark-400 text-xs font-mono uppercase block mb-1.5">Expiry Range</label>
+            <select
+              value={expiryRangeFilter}
+              onChange={(e) => setExpiryRangeFilter(e.target.value)}
+              className="w-full input-dark text-sm bg-dark-800"
+            >
+              <option value="all">All Dates</option>
+              <option value="expired">Already Expired</option>
+              <option value="30days">Within 30 Days</option>
+              <option value="90days">31-90 Days</option>
+              <option value="6months">91-180 Days</option>
+            </select>
+          </div>
+
+          {/* Supplier Filter */}
+          <div>
+            <label className="text-dark-400 text-xs font-mono uppercase block mb-1.5">Supplier</label>
+            <select
+              value={supplierFilter}
+              onChange={(e) => setSupplierFilter(e.target.value)}
+              className="w-full input-dark text-sm bg-dark-800"
+            >
+              {supplierOptions.map(sup => (
+                <option key={sup.id} value={sup.id}>
+                  {sup.name || sup.supplier_name || 'All Suppliers'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Clear Filters */}
+          {activeAdvancedFiltersCount > 0 && (
+            <button
+              onClick={() => {
+                setCategoryFilter('all')
+                setExpiryRangeFilter('all')
+                setSupplierFilter('all')
+              }}
+              className="w-full py-2 bg-dark-700 hover:bg-dark-600 border border-dark-600 rounded-lg text-xs text-dark-300 font-mono transition-all"
+            >
+              Clear Advanced Filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Items count */}
       <div className="px-4 pb-2 flex items-center justify-between">
@@ -184,6 +316,11 @@ export default function InventoryPage({ items, onUpdate, onDelete, initialFilter
                           {days !== null && ` (${days}d)`}
                         </span>
                       </div>
+                      {item.category && (
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-dark-700 border border-dark-600 rounded text-[10px] text-dark-300 font-mono">
+                          {item.category}
+                        </span>
+                      )}
                     </div>
                     <span className={getStatusClass(status)}>{getStatusLabel(status)}</span>
                   </div>
@@ -290,6 +427,15 @@ export default function InventoryPage({ items, onUpdate, onDelete, initialFilter
           })
         )}
       </div>
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <BulkInventoryImport
+          suppliers={suppliers}
+          onClose={() => setShowBulkImport(false)}
+          onImport={onBulkImport}
+        />
+      )}
     </div>
   )
 }

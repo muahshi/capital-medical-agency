@@ -141,6 +141,30 @@ export default function Dashboard({ items, orders = [], pendingOrderCount = 0, o
         </div>
       </button>
 
+      {/* Quick Actions - Phase 1 */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => onNavigate('suppliers')}
+          className="bg-[#0d0d0d] border border-yellow-500/20 rounded-2xl p-4 text-left active:scale-[0.98] transition-all hover:border-yellow-500/40"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <Users className="w-5 h-5 text-yellow-500" />
+            <span className="text-white font-semibold">Suppliers</span>
+          </div>
+          <p className="text-xs text-gray-500 font-mono">Manage supplier contacts</p>
+        </button>
+        <button
+          onClick={() => onNavigate('inventory')}
+          className="bg-[#0d0d0d] border border-gray-700 rounded-2xl p-4 text-left active:scale-[0.98] transition-all hover:border-gray-600"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <Package className="w-5 h-5 text-gray-400" />
+            <span className="text-white font-semibold">Inventory</span>
+          </div>
+          <p className="text-xs text-gray-500 font-mono">View all stock items</p>
+        </button>
+      </div>
+
       {/* Action Required */}
       {stats.actionItems.length > 0 && (
         <ActionRequired items={stats.actionItems} onGenerateReturn={setReturnNote} />
