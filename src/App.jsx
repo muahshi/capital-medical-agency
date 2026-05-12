@@ -8,10 +8,12 @@ import ScannerPage from './components/ScannerPage'
 import HistoryPage from './components/HistoryPage'
 import SettingsPage from './components/SettingsPage'
 import InsightsPage from './components/InsightsPage'
+import SuppliersPage from './components/SuppliersPage'
 import BottomNav from './components/BottomNav'
 import SalesmanPortal from './components/SalesmanPortal'
 import { useStock } from './hooks/useStock'
 import { useOrders } from './hooks/useOrders'
+import { useSuppliers } from './hooks/useSuppliers'
 import { verifySession, logoutSession } from './lib/supabase'
 import './styles/globals.css'
 
@@ -36,6 +38,7 @@ export default function App() {
 
   const { items, loading: stockLoading, addItems, updateItem, removeItem, clearAllData } = useStock()
   const { orders, addOrder, markOrderProcessed } = useOrders()
+  const { suppliers, loadSuppliers } = useSuppliers()
 
   // ── Global session check ───────────────────────────────────────────────────
   const checkSession = useCallback(async () => {
@@ -119,6 +122,11 @@ export default function App() {
     setSession(user)
   }
 
+  const handleBulkImport = async (entries) => {
+    const result = await addItems(entries)
+    return result
+  }
+
   // ── Loading spinner ────────────────────────────────────────────────────────
   if (!sessionChecked) {
     return (
@@ -167,8 +175,18 @@ export default function App() {
           />
         )}
         {activeTab === 'inventory' && (
-          <InventoryPage items={items} onUpdate={updateItem} onDelete={removeItem}
-            initialFilter={inventoryFilter} onBack={goBack} />
+          <InventoryPage
+            items={items}
+            onUpdate={updateItem}
+            onDelete={removeItem}
+            suppliers={suppliers}
+            onBulkImport={handleBulkImport}
+            initialFilter={inventoryFilter}
+            onBack={goBack}
+          />
+        )}
+        {activeTab === 'suppliers' && (
+          <SuppliersPage onBack={goBack} />
         )}
         {activeTab === 'scan' && (
           <ScannerPage onItemsAdded={addItems} onBack={goBack} />
