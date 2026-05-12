@@ -1,106 +1,91 @@
-import { differenceInDays, parseISO, isValid } from 'date-fns'
+// ─── src/lib/stockUtils.js — Shared utilities v3.0 ───────────────────────────
+import { differenceInDays, parseISO, isValid, format } from 'date-fns'
 
-/**
- * Smart expiry logic:
- * - Nikal gayi → 'expired' (Red)
- * - 180 din (6 mahine) se kam → 'expiring' (Yellow)
- * - Stock kam hai → 'low_stock'
- * - Sab theek → 'in_stock'
- */
+// ── Status logic ──────────────────────────────────────────────────────────────
 export function getStockStatus(item) {
-  const today = new Date()
-
-  if (item.expiry_date) {
-    const expiry = parseISO(item.expiry_date)
-    if (isValid(expiry)) {
-      const daysToExpiry = differenceInDays(expiry, today)
-      if (daysToExpiry < 0) return 'expired'
-      if (daysToExpiry <= 180) return 'expiring'  // 6 mahine
-    }
-  }
-
-  const threshold = item.low_stock_threshold || 100
-  if (item.quantity <= 0) return 'out_of_stock'
-  if (item.quantity <= threshold) return 'low_stock'
-
-  return 'in_stock'
+  const days = getDaysToExpiry(item.expiry_date)
+  if (days !== null && days < 0)  return 'expired'
+  if (days !== null && days <= 30) return 'expiring'
+  const threshold = item.low_stock_threshold || 50
+  if (item.quantity === 0)              return 'out'
+  if (item.quantity < threshold * 0.3)  return 'critical'
+  if (item.quantity < threshold)        return 'low'
+  return 'ok'
 }
 
 export function getStatusLabel(status) {
-  const map = {
-    in_stock: 'IN STOCK',
-    low_stock: 'LOW STOCK',
-    expiring: 'EXPIRING SOON',
-    expired: 'EXPIRED',
-    out_of_stock: 'OUT OF STOCK',
-  }
-  return map[status] || 'UNKNOWN'
+  const map = { ok:'IN STOCK', low:'LOW STOCK', critical:'CRITICAL', out:'OUT', expired:'EXPIRED', expiring:'EXP SOON' }
+  return map[status] || status.toUpperCase()
 }
 
 export function getStatusClass(status) {
+  const base = 'text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg whitespace-nowrap'
   const map = {
-    in_stock: 'badge-in-stock',
-    low_stock: 'badge-low-stock',
-    expiring: 'badge-expiring',
-    expired: 'badge-expired',
-    out_of_stock: 'badge-expired',
+    ok:       `${base} bg-green-900/40 text-green-400`,
+    low:      `${base} bg-amber-900/40 text-amber-400`,
+    critical: `${base} bg-orange-900/40 text-orange-400`,
+    out:      `${base} bg-red-900/40 text-red-400`,
+    expired:  `${base} bg-red-900/60 text-red-300`,
+    expiring: `${base} bg-orange-900/40 text-orange-300`,
   }
-  return map[status] || 'badge-in-stock'
+  return map[status] || `${base} bg-gray-900 text-gray-400`
 }
 
-export function getDaysToExpiry(expiryDate) {
-  if (!expiryDate) return null
-  const expiry = parseISO(expiryDate)
-  if (!isValid(expiry)) return null
-  return differenceInDays(expiry, new Date())
-}
-
-export function formatExpiry(expiryDate) {
-  if (!expiryDate) return '—'
+// ── Expiry helpers ────────────────────────────────────────────────────────────
+export function getDaysToExpiry(expiry_date) {
+  if (!expiry_date) return null
   try {
-    const d = parseISO(expiryDate)
-    if (!isValid(d)) return expiryDate
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const year = d.getFullYear()
-    return `${month}/${year}`
-  } catch {
-    return expiryDate
-  }
+    let d
+    if (typeof expiry_date === 'string' && /^\d{2}\/\d{4}$/.test(expiry_date)) {
+      const [m, y] = expiry_date.split('/')
+      d = new Date(parseInt(y), parseInt(m) - 1, 1)
+    } else {
+      d = parseISO(expiry_date)
+    }
+    if (!isValid(d)) return null
+    return differenceInDays(d, new Date())
+  } catch { return null }
 }
 
-// Indian Rupee format: ₹1,23,456
-export function formatCurrency(amount) {
-  if (!amount && amount !== 0) return '₹0'
-  return `₹${Number(amount).toLocaleString('en-IN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`
+export function formatExpiry(expiry_date) {
+  if (!expiry_date) return 'N/A'
+  try {
+    if (typeof expiry_date === 'string' && /^\d{2}\/\d{4}$/.test(expiry_date)) return expiry_date
+    const d = parseISO(expiry_date)
+    if (!isValid(d)) return expiry_date
+    return format(d, 'MM/yyyy')
+  } catch { return expiry_date }
 }
 
-export function calculateTotalStockValue(items) {
-  return items.reduce((sum, item) => {
-    return sum + (item.quantity || 0) * (item.unit_price || 0)
-  }, 0)
+// ── Aggregators ───────────────────────────────────────────────────────────────
+export function calculateTotalStockValue(items = []) {
+  return items.reduce((sum, i) => sum + (i.quantity || 0) * (i.unit_price || 0), 0)
 }
 
-export function getExpiringItems(items, days = 180) {
-  const today = new Date()
-  return items.filter(item => {
-    if (!item.expiry_date) return false
-    const expiry = parseISO(item.expiry_date)
-    if (!isValid(expiry)) return false
-    const diff = differenceInDays(expiry, today)
-    return diff >= 0 && diff <= days
+export function getExpiringItems(items = [], days = 90) {
+  return items.filter(i => {
+    const d = getDaysToExpiry(i.expiry_date)
+    return d !== null && d >= 0 && d <= days
+  }).sort((a, b) => (getDaysToExpiry(a.expiry_date) || 0) - (getDaysToExpiry(b.expiry_date) || 0))
+}
+
+export function getLowStockItems(items = []) {
+  return items.filter(i => {
+    const s = getStockStatus(i)
+    return s === 'low' || s === 'critical' || s === 'out'
   })
 }
 
-export function getLowStockItems(items) {
-  return items.filter(item => {
-    const threshold = item.low_stock_threshold || 100
-    return item.quantity <= threshold && item.quantity > 0
-  })
+// ── Formatting ────────────────────────────────────────────────────────────────
+export function formatCurrency(val = 0) {
+  if (val >= 100000) return `₹${(val/100000).toFixed(1)}L`
+  if (val >= 1000)   return `₹${(val/1000).toFixed(1)}K`
+  return `₹${Math.round(val).toLocaleString('en-IN')}`
 }
 
-export function getOutOfStockItems(items) {
-  return items.filter(item => item.quantity <= 0)
+export function formatDate(dateStr) {
+  if (!dateStr) return 'N/A'
+  try {
+    return new Date(dateStr).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+  } catch { return dateStr }
 }
