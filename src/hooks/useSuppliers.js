@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 
 const STORAGE_KEY = 'cma_suppliers'
 
-function loadSuppliers() {
+function getStoredSuppliers() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) return JSON.parse(stored)
@@ -26,12 +26,12 @@ export const useSuppliers = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setSuppliers(loadSuppliers())
+    setSuppliers(getStoredSuppliers())
     setLoading(false)
   }, [])
 
   const loadSuppliers = () => {
-    const data = loadSuppliers()
+    const data = getStoredSuppliers()
     setSuppliers(data)
     return data
   }
