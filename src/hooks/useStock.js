@@ -1,122 +1,184 @@
-import { useState, useEffect } from 'react'
+// ─── src/hooks/useStock.js — Supabase sync + localStorage offline ─────────────
+import { useState, useEffect, useCallback } from 'react'
+import { fetchStock, upsertStockItems, updateStockItem as dbUpdate, deleteStockItem as dbDelete, subscribeToStock } from '../lib/supabase'
 
-const STORAGE_KEY = 'cma_inventory_items'
-const VERSION_KEY = 'cma_data_version'
-const CURRENT_VERSION = '3'
+const LS_KEY  = 'cma_inventory_items'
+const VER_KEY = 'cma_data_version'
+const VERSION = '4'
 
-function migrateIfNeeded() {
-  const version = localStorage.getItem(VERSION_KEY)
-  if (version !== CURRENT_VERSION) {
-    localStorage.removeItem(STORAGE_KEY)
-    localStorage.setItem(VERSION_KEY, CURRENT_VERSION)
+function migrate() {
+  if (localStorage.getItem(VER_KEY) !== VERSION) {
+    // v4: keep existing data, just update version
+    localStorage.setItem(VER_KEY, VERSION)
   }
 }
 
-function loadItems() {
-  migrateIfNeeded()
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) return JSON.parse(stored)
-  } catch (e) {}
-  return []
+function loadLocal() {
+  migrate()
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
 }
 
-function saveItems(items) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-  } catch (e) {}
+function saveLocal(items) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(items)) } catch {}
 }
 
-// Normalize name for duplicate matching: lowercase + remove spaces/punctuation
-function normalizeName(name = '') {
+function normName(name = '') {
   return name.toLowerCase().replace(/[\s\-_.]/g, '').trim()
 }
 
-export const useStock = () => {
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
+function genId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2,7)}`
+}
 
+export const useStock = () => {
+  const [items,   setItems]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+
+  // ── Boot: load local first, then sync from Supabase ──────────────────────
   useEffect(() => {
-    setItems(loadItems())
+    const local = loadLocal()
+    setItems(local)
     setLoading(false)
+
+    // Try Supabase sync
+    syncFromDB(local)
+
+    // Real-time subscription
+    const unsub = subscribeToStock(({ eventType, new: row, old }) => {
+      setItems(prev => {
+        let updated
+        if (eventType === 'INSERT') {
+          updated = prev.some(i => i.id === row.id) ? prev : [row, ...prev]
+        } else if (eventType === 'UPDATE') {
+          updated = prev.map(i => i.id === row.id ? { ...i, ...row } : i)
+        } else if (eventType === 'DELETE') {
+          updated = prev.filter(i => i.id !== old.id)
+        } else {
+          updated = prev
+        }
+        saveLocal(updated)
+        return updated
+      })
+    })
+
+    return () => unsub()
   }, [])
 
-  const addItems = async (newItems) => {
-    let addedCount = 0
-    let updatedCount = 0
+  async function syncFromDB(localItems) {
+    setSyncing(true)
+    try {
+      const { data, error } = await fetchStock()
+      if (error || !data) return
+
+      if (data.length > 0) {
+        // DB has data — use it as source of truth
+        setItems(data)
+        saveLocal(data)
+      } else if (localItems.length > 0) {
+        // DB empty but local has data — push local to DB
+        await upsertStockItems(localItems)
+      }
+    } catch (e) {
+      console.warn('[useStock] Sync failed, using local:', e.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  // ── addItems — duplicate check + DB sync ─────────────────────────────────
+  const addItems = useCallback(async (newItems) => {
+    let addedCount = 0, updatedCount = 0
+    const toUpsert = []
 
     setItems(prev => {
       const updated = [...prev]
 
-      newItems.forEach((item) => {
-        const incomingName = normalizeName(item.medicine_name || item.name)
-        const incomingBatch = (item.batch_no || '').trim().toLowerCase()
-        const incomingQty = parseInt(item.qty) || parseInt(item.quantity) || 0
+      newItems.forEach(item => {
+        const inName  = normName(item.medicine_name || item.name)
+        const inBatch = (item.batch_no || '').trim().toLowerCase()
+        const inQty   = parseInt(item.qty) || parseInt(item.quantity) || 0
 
-        // Duplicate check: same medicine name + same batch number
-        const dupIndex = updated.findIndex(existing => {
-          const sameName = normalizeName(existing.medicine_name) === incomingName
-          const sameBatch = incomingBatch
-            ? (existing.batch_no || '').trim().toLowerCase() === incomingBatch
-            : true
+        const dupIdx = updated.findIndex(ex => {
+          const sameName  = normName(ex.medicine_name) === inName
+          const sameBatch = inBatch ? (ex.batch_no||'').trim().toLowerCase() === inBatch : true
           return sameName && sameBatch
         })
 
-        if (dupIndex !== -1) {
-          // Duplicate mila — quantity update karo
-          updated[dupIndex] = {
-            ...updated[dupIndex],
-            quantity: updated[dupIndex].quantity + incomingQty,
-            unit_price: parseFloat(item.mrp) || parseFloat(item.unit_price) || updated[dupIndex].unit_price,
+        if (dupIdx !== -1) {
+          updated[dupIdx] = {
+            ...updated[dupIdx],
+            quantity: updated[dupIdx].quantity + inQty,
+            unit_price: parseFloat(item.mrp) || parseFloat(item.unit_price) || updated[dupIdx].unit_price,
+            gst_percent: item.gst_percent || updated[dupIdx].gst_percent,
             updated_at: new Date().toISOString(),
           }
+          toUpsert.push(updated[dupIdx])
           updatedCount++
         } else {
-          // Naya item add karo
-          updated.push({
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            medicine_name: item.medicine_name || item.name || 'Unknown',
-            batch_no: item.batch_no || null,
-            expiry_date: item.expiry_date || null,
-            quantity: incomingQty,
-            unit_price: parseFloat(item.mrp) || parseFloat(item.unit_price) || 0,
-            source: item.source || 'ai_scan',
-            low_stock_threshold: item.low_stock_threshold || 100,
-            created_at: new Date().toISOString(),
-          })
+          const newRow = {
+            id:                  genId(),
+            medicine_name:       item.medicine_name || item.name || 'Unknown',
+            batch_no:            item.batch_no || null,
+            expiry_date:         item.expiry_date || null,
+            quantity:            inQty,
+            unit_price:          parseFloat(item.mrp) || parseFloat(item.unit_price) || 0,
+            gst_percent:         item.gst_percent || null,
+            supplier:            item.supplier || null,
+            source:              item.source || 'ai_scan',
+            low_stock_threshold: item.low_stock_threshold || 50,
+            created_at:          new Date().toISOString(),
+            updated_at:          new Date().toISOString(),
+          }
+          updated.push(newRow)
+          toUpsert.push(newRow)
           addedCount++
         }
       })
 
-      saveItems(updated)
+      saveLocal(updated)
       return updated
     })
+
+    // Async DB sync (non-blocking)
+    if (toUpsert.length > 0) {
+      upsertStockItems(toUpsert).catch(e => console.warn('[useStock] DB sync failed:', e.message))
+    }
 
     return { added: addedCount, updated: updatedCount, error: null }
-  }
+  }, [])
 
-  const updateItem = async (id, updates) => {
+  // ── updateItem ────────────────────────────────────────────────────────────
+  const updateItem = useCallback(async (id, updates) => {
     setItems(prev => {
-      const updated = prev.map(i => i.id === id ? { ...i, ...updates } : i)
-      saveItems(updated)
+      const updated = prev.map(i => i.id === id ? { ...i, ...updates, updated_at: new Date().toISOString() } : i)
+      saveLocal(updated)
       return updated
     })
-    return { data: null, error: null }
-  }
+    // DB sync
+    const { error } = await dbUpdate(id, updates)
+    return { data: null, error }
+  }, [])
 
-  const removeItem = async (id) => {
+  // ── removeItem ────────────────────────────────────────────────────────────
+  const removeItem = useCallback(async (id) => {
     setItems(prev => {
       const updated = prev.filter(i => i.id !== id)
-      saveItems(updated)
+      saveLocal(updated)
       return updated
     })
-    return { error: null }
-  }
+    const { error } = await dbDelete(id)
+    return { error }
+  }, [])
 
-  const clearAllData = () => {
-    localStorage.removeItem(STORAGE_KEY)
+  // ── clearAllData ──────────────────────────────────────────────────────────
+  const clearAllData = useCallback(() => {
+    localStorage.removeItem(LS_KEY)
     setItems([])
-  }
+  }, [])
 
-  return { items, loading, addItems, updateItem, removeItem, clearAllData }
+  // ── Manual resync ─────────────────────────────────────────────────────────
+  const resync = useCallback(() => syncFromDB(items), [items])
+
+  return { items, loading, syncing, addItems, updateItem, removeItem, clearAllData, resync }
 }
