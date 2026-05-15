@@ -1,9 +1,9 @@
+/* ── Google Fonts — MUST be first ─────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* ── Google Fonts ─────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
@@ -25,9 +25,7 @@
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
   html { height: 100%; overflow: hidden; }
-
   body {
     height: 100%;
     background: var(--bg-base);
@@ -36,13 +34,10 @@
     -webkit-font-smoothing: antialiased;
     overflow: hidden;
   }
-
   #root { height: 100%; display: flex; flex-direction: column; }
 }
 
 @layer components {
-
-  /* ── Scrollable area ─────────────────────────────────── */
   .scroll-area {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -50,7 +45,6 @@
   }
   .scroll-area::-webkit-scrollbar { display: none; }
 
-  /* ── Status chips — exact screenshot colors ───────────── */
   .chip-in-stock {
     @apply inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold font-mono tracking-wider;
     background: rgba(0,255,136,0.12);
@@ -87,8 +81,6 @@
     border: 1px solid rgba(255,77,109,0.6);
     color: #FF4D6D;
   }
-
-  /* ── Neon glow card ──────────────────────────────────── */
   .card-neon {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -96,8 +88,6 @@
     position: relative;
     overflow: hidden;
   }
-
-  /* ── Stat card gradient top border ──────────────────── */
   .stat-card {
     background: var(--bg-card);
     border-radius: 1rem;
@@ -115,7 +105,6 @@
   }
 }
 
-/* ── Animations ───────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity:0; transform:translateY(8px); }
   to   { opacity:1; transform:translateY(0);   }
@@ -128,12 +117,6 @@
 }
 .pulse-cyan { animation: pulse-cyan 2s ease infinite; }
 
-@keyframes float-node {
-  0%,100% { transform: translateY(0) translateX(0); }
-  33%     { transform: translateY(-4px) translateX(2px); }
-  66%     { transform: translateY(2px) translateX(-2px); }
-}
-
 @keyframes scan-line {
   0%   { top: 0%;   opacity: 1; }
   90%  { opacity: 1; }
@@ -144,11 +127,6 @@
   background: linear-gradient(90deg, transparent, #00E5FF, transparent);
   box-shadow: 0 0 12px #00E5FF;
   animation: scan-line 2s linear infinite;
-}
-
-@keyframes network-pulse {
-  0%,100% { opacity: 0.3; }
-  50%     { opacity: 0.7; }
 }
 
 @keyframes spin { from { transform:rotate(0); } to { transform:rotate(360deg); } }
@@ -163,7 +141,6 @@
   animation: shimmer 1.5s infinite;
 }
 
-/* ── Barcode aesthetic ────────────────────────────────── */
 .barcode-lines {
   display: flex;
   gap: 1.5px;
@@ -178,18 +155,20 @@
   border-radius: 1px;
 }
 
-/* ── Network nodes (scanner bg) ──────────────────────── */
 .network-node {
   position: absolute;
   border-radius: 50%;
   background: rgba(0,229,255,0.6);
-  animation: network-pulse 2s ease infinite;
+  animation: networkPulse 2.5s ease infinite;
 }
 
-/* ── Safe bottom ──────────────────────────────────────── */
+@keyframes networkPulse {
+  0%,100% { opacity: 0.3; }
+  50%      { opacity: 0.8; }
+}
+
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* ── Corner scanner ───────────────────────────────────── */
 .corner-tl { position:absolute; top:0; left:0;  width:24px; height:24px; border-top:2px solid #00E5FF; border-left:2px solid  #00E5FF; border-radius:4px 0 0 0; }
 .corner-tr { position:absolute; top:0; right:0; width:24px; height:24px; border-top:2px solid #00E5FF; border-right:2px solid #00E5FF; border-radius:0 4px 0 0; }
 .corner-bl { position:absolute; bottom:0; left:0;  width:24px; height:24px; border-bottom:2px solid #00E5FF; border-left:2px solid  #00E5FF; border-radius:0 0 0 4px; }
