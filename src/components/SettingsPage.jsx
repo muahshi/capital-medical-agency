@@ -1,403 +1,324 @@
+// ─── src/components/SettingsPage.jsx — Phase 4 Complete ─────────────────────
 import { useState, useEffect } from 'react'
 import {
-  User, Bell, Database, LogOut, ChevronRight, Shield,
-  Smartphone, Plus, Copy, ToggleLeft, ToggleRight,
-  RefreshCw, MapPin, AlertCircle, Users, Download
+  User, LogOut, ChevronRight, Shield, Smartphone, Plus,
+  Copy, ToggleLeft, ToggleRight, RefreshCw, MapPin, AlertCircle,
+  Users, Download, Brain, ShoppingCart, FileText, Scan,
+  ChevronLeft, BarChart2, Zap
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
-  fetchSalesmanCodes,
-  createSalesmanCode,
-  toggleSalesmanActive,
-  logoutSession
+  fetchSalesmanCodes, createSalesmanCode,
+  toggleSalesmanActive, logoutSession
 } from '../lib/supabase'
+import SmartReorder from './SmartReorder'
+import TaxReports   from './TaxReports'
+import BarcodeScanner from './BarcodeScanner'
 
 const COLOR_OPTIONS = [
-  { label: 'Gold',   value: '#F59E0B' },
-  { label: 'Blue',   value: '#3B82F6' },
-  { label: 'Green',  value: '#10B981' },
-  { label: 'Purple', value: '#8B5CF6' },
-  { label: 'Pink',   value: '#EC4899' },
+  { value:'#F59E0B', label:'Gold'   },
+  { value:'#3B82F6', label:'Blue'   },
+  { value:'#10B981', label:'Green'  },
+  { value:'#8B5CF6', label:'Purple' },
+  { value:'#EC4899', label:'Pink'   },
 ]
 
-export default function SettingsPage({ user, isDemoMode, items, onLogout, onBack, onClearData }) {
-  const [activeSection, setActiveSection] = useState(null) // null | 'salesman'
-  const [salesmen, setSalesmen]     = useState([])
-  const [smLoading, setSmLoading]   = useState(false)
-  const [creating, setCreating]     = useState(false)
-  const [showForm, setShowForm]     = useState(false)
-  const [newCode, setNewCode]       = useState(null)
-  const [form, setForm]             = useState({ label: '', city: '', avatar: '', color: '#F59E0B' })
+export default function SettingsPage({ user, items = [], orders = [], onLogout, onBack, onClearData }) {
+  const [section,  setSection]  = useState(null)
 
-  // Load salesman codes when section opens
-  useEffect(() => {
-    if (activeSection === 'salesman') loadSalesmen()
-  }, [activeSection])
+  // Salesman state
+  const [salesmen,  setSalesmen]  = useState([])
+  const [smLoading, setSmLoading] = useState(false)
+  const [creating,  setCreating]  = useState(false)
+  const [showForm,  setShowForm]  = useState(false)
+  const [newCode,   setNewCode]   = useState(null)
+  const [form,      setForm]      = useState({label:'',city:'',avatar:'',color:'#F59E0B'})
+  const [showBarcode, setShowBarcode] = useState(false)
+
+  useEffect(() => { if (section==='salesman') loadSalesmen() }, [section])
 
   const loadSalesmen = async () => {
     setSmLoading(true)
-    const { data, error } = await fetchSalesmanCodes()
-    if (!error) setSalesmen(data)
-    else toast.error('Load nahi hua')
+    const { data } = await fetchSalesmanCodes()
+    setSalesmen(data || [])
     setSmLoading(false)
   }
 
   const handleCreate = async () => {
-    if (!form.label.trim() || !form.city.trim()) {
-      toast.error('Naam aur city required hain')
-      return
-    }
+    if (!form.label.trim()||!form.city.trim()) { toast.error('Naam aur city required'); return }
     setCreating(true)
-    const avatar = form.avatar.trim() || form.label.trim()[0].toUpperCase()
-    const { data, error, code } = await createSalesmanCode({ ...form, avatar })
+    const { data, error, code } = await createSalesmanCode({ ...form, avatar: form.avatar||form.label[0].toUpperCase() })
     setCreating(false)
-    if (error) { toast.error('Code nahi bana. Try again.'); return }
-    setNewCode(code)
-    toast.success('✓ Salesman code ban gaya!')
-    setShowForm(false)
-    setForm({ label: '', city: '', avatar: '', color: '#F59E0B' })
+    if (error) { toast.error('Code nahi bana'); return }
+    setNewCode(code); setShowForm(false)
+    setForm({label:'',city:'',avatar:'',color:'#F59E0B'})
+    toast.success('Code ready! ✓')
     loadSalesmen()
   }
 
-  const handleToggle = async (id, currentActive, label) => {
-    const msg = currentActive
-      ? `"${label}" ko DISABLE karna chahte ho? Wo turant logout ho jayega.`
-      : `"${label}" ko ENABLE karna chahte ho?`
-    if (!window.confirm(msg)) return
-    const { error } = await toggleSalesmanActive(id, !currentActive)
+  const handleToggle = async (id, cur, label) => {
+    if (!window.confirm(cur?`"${label}" disable karna chahte ho? Turant logout hoga.`:`"${label}" enable karna chahte ho?`)) return
+    const { error } = await toggleSalesmanActive(id, !cur)
     if (error) { toast.error('Update nahi hua'); return }
-    toast.success(currentActive ? `${label} disabled ✓` : `${label} enabled ✓`)
+    toast.success(cur?`${label} disabled`:`${label} enabled`)
     loadSalesmen()
   }
 
-  const copyCode = (code) => {
-    navigator.clipboard?.writeText(code)
-      .then(() => toast.success('Code copy ho gaya!'))
-      .catch(() => toast.error('Manual copy karo: ' + code))
-  }
+  const handleLogout = async () => { await logoutSession(); onLogout?.() }
 
-  const handleLogout = async () => {
-    await logoutSession()
-    if (onLogout) onLogout()
-    else window.location.reload()
-  }
+  // Sub-sections
+  if (section === 'salesman') return <SalesmanSection salesmen={salesmen} smLoading={smLoading} showForm={showForm} setShowForm={setShowForm} form={form} setForm={setForm} creating={creating} handleCreate={handleCreate} handleToggle={handleToggle} newCode={newCode} setNewCode={setNewCode} onBack={()=>setSection(null)} loadSalesmen={loadSalesmen}/>
+  if (section === 'reorder')  return <SmartReorder  items={items} orders={orders} onBack={()=>setSection(null)}/>
+  if (section === 'tax')      return <TaxReports    orders={orders} stockItems={items} onBack={()=>setSection(null)}/>
 
-  const exportCSV = () => {
-    const headers = ['Medicine Name', 'Batch No', 'Expiry', 'Quantity', 'MRP']
-    const rows = items.map(i => [
-      i.medicine_name, i.batch_no || '', i.expiry_date || '', i.quantity, i.unit_price || ''
-    ])
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `cma-inventory-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('CSV exported!')
-  }
-
-  // ── Salesman Manager Section ─────────────────────────────────────
-  if (activeSection === 'salesman') {
-    return (
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="px-4 pt-4 pb-2 flex items-center gap-3 border-b border-white/5">
-          <button
-            onClick={() => { setActiveSection(null); setNewCode(null); setShowForm(false) }}
-            className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"
-          >
-            <ChevronRight className="w-4 h-4 text-gray-400 rotate-180" />
-          </button>
-          <div>
-            <p className="text-gray-500 text-[10px] font-mono uppercase tracking-widest">Admin Panel</p>
-            <h1 className="text-white text-xl font-bold tracking-wide">Salesman Codes</h1>
-          </div>
-          <button onClick={loadSalesmen} className="ml-auto w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-            <RefreshCw className="w-4 h-4 text-gray-400" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-20">
-
-          {/* New code success alert */}
-          {newCode && (
-            <div className="bg-green-950/40 border border-green-500/30 rounded-2xl p-4">
-              <p className="text-green-400 text-[10px] font-mono tracking-widest mb-2">✓ NAYA CODE READY — ABHI COPY KARO</p>
-              <div className="flex items-center gap-3 bg-black/40 rounded-xl p-3">
-                <span className="text-white font-mono text-lg font-bold tracking-widest flex-1">{newCode}</span>
-                <button onClick={() => copyCode(newCode)} className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center">
-                  <Copy className="w-4 h-4 text-gray-300" />
-                </button>
-              </div>
-              <p className="text-gray-600 text-xs mt-2">Salesman ko WhatsApp karo. App mein save mat karo.</p>
-              <button onClick={() => setNewCode(null)} className="text-gray-600 text-xs mt-2 underline">Dismiss</button>
-            </div>
-          )}
-
-          {/* Add button */}
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="w-full bg-yellow-500/10 border border-yellow-500/20 rounded-2xl py-4 flex items-center justify-center gap-2 text-yellow-500 font-bold text-sm active:scale-95 transition-all"
-          >
-            <Plus className="w-5 h-5" /> Naya Salesman Add Karo
-          </button>
-
-          {/* Create form */}
-          {showForm && (
-            <div className="bg-[#0a0a0a] border border-white/8 rounded-2xl p-4 space-y-4">
-              <p className="text-white font-bold text-sm">Salesman Details</p>
-
-              {/* Name */}
-              <div className="space-y-1">
-                <p className="text-gray-600 text-[10px] font-mono uppercase tracking-widest">Naam *</p>
-                <div className="flex items-center gap-3 bg-white/4 border border-white/8 rounded-xl px-4 py-3">
-                  <User className="w-4 h-4 text-gray-600 shrink-0" />
-                  <input
-                    className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-gray-700"
-                    value={form.label}
-                    onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
-                    placeholder="e.g. Rahul"
-                  />
-                </div>
-              </div>
-
-              {/* City */}
-              <div className="space-y-1">
-                <p className="text-gray-600 text-[10px] font-mono uppercase tracking-widest">City *</p>
-                <div className="flex items-center gap-3 bg-white/4 border border-white/8 rounded-xl px-4 py-3">
-                  <MapPin className="w-4 h-4 text-gray-600 shrink-0" />
-                  <input
-                    className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-gray-700"
-                    value={form.city}
-                    onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                    placeholder="e.g. Bhopal"
-                  />
-                </div>
-              </div>
-
-              {/* Avatar */}
-              <div className="space-y-1">
-                <p className="text-gray-600 text-[10px] font-mono uppercase tracking-widest">Avatar Letter (optional)</p>
-                <div className="flex items-center gap-3 bg-white/4 border border-white/8 rounded-xl px-4 py-3">
-                  <input
-                    className="bg-transparent outline-none text-white text-lg font-bold font-mono w-10 text-center placeholder:text-gray-700"
-                    value={form.avatar}
-                    maxLength={1}
-                    onChange={e => setForm(f => ({ ...f, avatar: e.target.value.toUpperCase() }))}
-                    placeholder="R"
-                  />
-                  <p className="text-gray-600 text-xs">Naam ka pehla letter auto-fill hoga</p>
-                </div>
-              </div>
-
-              {/* Color */}
-              <div className="space-y-2">
-                <p className="text-gray-600 text-[10px] font-mono uppercase tracking-widest">Color</p>
-                <div className="flex gap-3">
-                  {COLOR_OPTIONS.map(c => (
-                    <button
-                      key={c.value}
-                      onClick={() => setForm(f => ({ ...f, color: c.value }))}
-                      style={{ background: c.value }}
-                      className={`w-8 h-8 rounded-lg transition-all ${form.color === c.value ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''}`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleCreate}
-                  disabled={creating}
-                  className="flex-1 bg-yellow-500 text-black font-bold py-3 rounded-xl text-sm disabled:opacity-50 active:scale-95 transition-all"
-                >
-                  {creating ? 'Ban raha hai...' : '✓ Code Banao'}
-                </button>
-                <button
-                  onClick={() => setShowForm(false)}
-                  className="bg-white/5 border border-white/10 text-gray-400 py-3 px-5 rounded-xl text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Salesman list */}
-          {smLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-2 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin" />
-            </div>
-          ) : salesmen.length === 0 ? (
-            <div className="text-center py-12 text-gray-600 text-sm">
-              Koi salesman nahi. Upar se add karo.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-gray-600 text-[10px] font-mono uppercase tracking-widest">{salesmen.length} Salesmen</p>
-              {salesmen.map(s => (
-                <div
-                  key={s.id}
-                  className={`bg-[#0a0a0a] rounded-2xl p-4 border transition-all ${s.is_active ? 'border-white/6' : 'border-red-500/20 opacity-60'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Avatar */}
-                    <div
-                      style={{ background: s.color || '#F59E0B' }}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-black font-bold text-base shrink-0"
-                    >
-                      {s.avatar || s.label[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-semibold text-sm truncate">{s.label}</p>
-                      <p className="text-gray-600 text-xs">{s.city || '—'}</p>
-                    </div>
-                    {/* Toggle */}
-                    <button
-                      onClick={() => handleToggle(s.id, s.is_active, s.label)}
-                      className={s.is_active ? 'text-green-400' : 'text-red-400'}
-                    >
-                      {s.is_active
-                        ? <ToggleRight className="w-8 h-8" />
-                        : <ToggleLeft className="w-8 h-8" />
-                      }
-                    </button>
-                  </div>
-
-                  {/* Code row */}
-                  <div className="mt-3 flex items-center gap-3 bg-black/40 rounded-xl px-3 py-2">
-                    <span className="text-yellow-500 font-mono text-sm font-bold tracking-widest flex-1">{s.code}</span>
-                    <button onClick={() => copyCode(s.code)}>
-                      <Copy className="w-4 h-4 text-gray-600" />
-                    </button>
-                  </div>
-
-                  {!s.is_active && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <AlertCircle className="w-3 h-3 text-red-400" />
-                      <span className="text-red-400 text-[10px] font-mono">DISABLED — Login blocked</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Info footer */}
-          <div className="bg-white/2 border border-white/5 rounded-xl p-3 space-y-1">
-            <p className="text-gray-700 text-[10px] font-mono leading-relaxed">
-              ⚡ Toggle OFF → salesman turant logout + future login block<br />
-              🔑 Code format: NAME-CITY-RANDOM (e.g. RAH-BPL-7741)<br />
-              📋 Naya code sirf ek baar dikhega — copy karke do
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Main Settings ────────────────────────────────────────────────
   return (
-    <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
-      <div className="px-4 pt-4 pb-2">
-        <p className="text-gray-500 text-xs font-mono tracking-widest uppercase">App</p>
-        <h1 className="text-white text-3xl font-bold tracking-widest">SETTINGS</h1>
+    <div style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'#040407' }}>
+
+      {/* Barcode scanner overlay */}
+      {showBarcode && <BarcodeScanner items={items} onClose={()=>setShowBarcode(false)} onItemFound={(item,code)=>{ toast.success(`${item.medicine_name} — Stock: ${item.quantity}`); }} mode="lookup"/>}
+
+      {/* Header */}
+      <div style={{ padding:'16px 16px 12px', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ color:'rgba(255,255,255,0.3)', fontSize:9, fontFamily:'monospace', letterSpacing:3 }}>ADMIN</div>
+        <div style={{ color:'#fff', fontSize:22, fontFamily:'Space Grotesk,sans-serif', fontWeight:800, letterSpacing:1 }}>SETTINGS</div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-20 space-y-4">
+      <div style={{ flex:1,overflowY:'auto',padding:'14px 14px 100px' }}>
 
-        {/* Profile card */}
-        <div className="bg-[#0a0a0a] rounded-2xl p-4 border border-white/6 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center">
-            <User className="w-6 h-6 text-yellow-500" />
+        {/* Profile */}
+        <div style={{ background:'rgba(10,12,18,1)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:18,padding:'16px',marginBottom:16,display:'flex',alignItems:'center',gap:14 }}>
+          <div style={{ width:48,height:48,borderRadius:16,background:'rgba(0,229,255,0.08)',border:'1px solid rgba(0,229,255,0.2)',display:'flex',alignItems:'center',justifyContent:'center' }}>
+            <User size={24} color="#00E5FF"/>
           </div>
           <div>
-            <p className="text-white font-semibold">{user?.label || 'Admin'}</p>
-            <p className="text-gray-500 text-xs font-mono">Capital Medical Agency</p>
+            <div style={{ color:'#fff',fontWeight:700,fontSize:15 }}>{user?.label||'Admin'}</div>
+            <div style={{ color:'rgba(255,255,255,0.3)',fontSize:11,fontFamily:'monospace' }}>Capital Medical Agency · Bhopal</div>
           </div>
-          <div className="ml-auto bg-yellow-900/20 border border-yellow-500/20 rounded-lg px-2 py-1">
-            <p className="text-yellow-500 text-[10px] font-mono">ADMIN</p>
-          </div>
-        </div>
-
-        {/* Salesman Manager — main feature */}
-        <button
-          onClick={() => setActiveSection('salesman')}
-          className="w-full bg-[#0a0a0a] border border-yellow-500/20 rounded-2xl p-4 flex items-center gap-4 active:scale-95 transition-all"
-        >
-          <div className="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5 text-yellow-500" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-white font-semibold text-sm">Salesman Manage Karo</p>
-            <p className="text-gray-500 text-xs mt-0.5">Codes add / disable / copy karo</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-600" />
-        </button>
-
-        {/* Security */}
-        <div className="bg-[#0a0a0a] border border-white/6 rounded-2xl p-4 space-y-1">
-          <div className="flex items-center gap-3 mb-3">
-            <Shield className="w-5 h-5 text-gray-500" />
-            <p className="text-white font-semibold text-sm">Security</p>
-          </div>
-          <div className="text-gray-600 text-xs font-mono space-y-1 leading-relaxed pl-8">
-            <p>✓ DB-backed token authentication</p>
-            <p>✓ Auto-lock on key change</p>
-            <p>✓ Session expires in 30 days</p>
-            <p>✓ Salesman codes isolated</p>
+          <div style={{ marginLeft:'auto',background:'rgba(0,229,255,0.08)',border:'1px solid rgba(0,229,255,0.2)',borderRadius:8,padding:'4px 10px' }}>
+            <span style={{ color:'#00E5FF',fontSize:9,fontFamily:'monospace',fontWeight:700 }}>ADMIN</span>
           </div>
         </div>
 
-        {/* Export */}
-        <button
-          onClick={exportCSV}
-          className="w-full bg-[#0a0a0a] border border-white/6 rounded-2xl p-4 flex items-center gap-4 active:scale-95 transition-all"
-        >
-          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
-            <Download className="w-5 h-5 text-gray-400" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-white font-semibold text-sm">Export Inventory CSV</p>
-            <p className="text-gray-500 text-xs mt-0.5">Excel mein open kar sakte ho</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-600" />
-        </button>
+        {/* Phase 4 Features */}
+        <div style={{ color:'rgba(255,255,255,0.2)',fontSize:9,fontFamily:'monospace',letterSpacing:3,marginBottom:10 }}>PHASE 4 · AI FEATURES</div>
 
-        {/* PWA Install */}
-        <button
-          onClick={() => toast('Browser menu → "Add to Home Screen"', { icon: '📱', duration: 4000 })}
-          className="w-full bg-[#0a0a0a] border border-white/6 rounded-2xl p-4 flex items-center gap-4 active:scale-95 transition-all"
-        >
-          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
-            <Smartphone className="w-5 h-5 text-gray-400" />
+        <MenuCard
+          icon={<Brain size={20} color="#00E5FF"/>}
+          iconBg="rgba(0,229,255,0.08)"
+          iconBorder="rgba(0,229,255,0.2)"
+          title="Smart Reorder (AI)"
+          sub="AI purchase suggestions + WhatsApp PO"
+          badge="AI"
+          badgeColor="#00E5FF"
+          onClick={()=>setSection('reorder')}
+        />
+
+        <MenuCard
+          icon={<FileText size={20} color="#FFD700"/>}
+          iconBg="rgba(255,215,0,0.08)"
+          iconBorder="rgba(255,215,0,0.2)"
+          title="GST & Tax Reports"
+          sub="GSTR-1 export, HSN summary — CA-ready"
+          badge="NEW"
+          badgeColor="#FFD700"
+          onClick={()=>setSection('tax')}
+        />
+
+        <MenuCard
+          icon={<Scan size={20} color="#8B5CF6"/>}
+          iconBg="rgba(139,92,246,0.08)"
+          iconBorder="rgba(139,92,246,0.2)"
+          title="Barcode Scanner"
+          sub="Medicine lookup by barcode/QR"
+          badge="NEW"
+          badgeColor="#8B5CF6"
+          onClick={()=>setShowBarcode(true)}
+        />
+
+        <div style={{ color:'rgba(255,255,255,0.2)',fontSize:9,fontFamily:'monospace',letterSpacing:3,margin:'16px 0 10px' }}>MANAGEMENT</div>
+
+        <MenuCard
+          icon={<Users size={20} color="#F59E0B"/>}
+          iconBg="rgba(245,158,11,0.08)"
+          iconBorder="rgba(245,158,11,0.2)"
+          title="Salesman Codes"
+          sub="Add, disable, manage field team"
+          onClick={()=>setSection('salesman')}
+        />
+
+        <MenuCard
+          icon={<Download size={20} color="rgba(255,255,255,0.5)"/>}
+          iconBg="rgba(255,255,255,0.04)"
+          iconBorder="rgba(255,255,255,0.08)"
+          title="Export Inventory CSV"
+          sub="Excel mein open kar sakte ho"
+          onClick={()=>{
+            const headers=['Medicine Name','Batch No','Expiry','Qty','MRP','GST%','Supplier']
+            const rows=items.map(i=>[i.medicine_name,i.batch_no||'',i.expiry_date||'',i.quantity,i.unit_price||0,i.gst_percent||'',i.supplier||''])
+            const csv=[headers,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n')
+            const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`cma-inventory-${new Date().toISOString().slice(0,10)}.csv`;a.click()
+            toast.success('CSV exported!')
+          }}
+        />
+
+        <MenuCard
+          icon={<Smartphone size={20} color="rgba(255,255,255,0.5)"/>}
+          iconBg="rgba(255,255,255,0.04)"
+          iconBorder="rgba(255,255,255,0.08)"
+          title="Install App (PWA)"
+          sub="Home screen pe add karo"
+          onClick={()=>toast('Browser menu → "Add to Home Screen"',{icon:'📱',duration:4000})}
+        />
+
+        <div style={{ color:'rgba(255,255,255,0.2)',fontSize:9,fontFamily:'monospace',letterSpacing:3,margin:'16px 0 10px' }}>SECURITY</div>
+
+        <div style={{ background:'rgba(10,12,18,1)',border:'1px solid rgba(255,255,255,0.05)',borderRadius:16,padding:'14px 16px',marginBottom:10 }}>
+          <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:10 }}>
+            <Shield size={16} color="rgba(255,255,255,0.4)"/>
+            <span style={{ color:'rgba(255,255,255,0.6)',fontSize:13,fontWeight:600 }}>Security Status</span>
           </div>
-          <div className="flex-1 text-left">
-            <p className="text-white font-semibold text-sm">Install App (PWA)</p>
-            <p className="text-gray-500 text-xs mt-0.5">Home screen pe add karo</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-600" />
-        </button>
+          {['✓ Supabase token auth','✓ Auto-lock on key change','✓ RLS enabled','✓ Session expires 30 days','✓ Salesman codes isolated'].map(item=>(
+            <div key={item} style={{ color:'rgba(0,255,136,0.5)',fontSize:11,fontFamily:'monospace',padding:'3px 0' }}>{item}</div>
+          ))}
+        </div>
 
         {/* Logout */}
-        <button
-          onClick={handleLogout}
-          className="w-full bg-red-950/20 border border-red-500/20 rounded-2xl p-4 flex items-center gap-4 active:scale-95 transition-all"
-        >
-          <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
-            <LogOut className="w-5 h-5 text-red-400" />
+        <button onClick={handleLogout} style={{ width:'100%',background:'rgba(255,77,109,0.06)',border:'1px solid rgba(255,77,109,0.15)',borderRadius:18,padding:'16px',display:'flex',alignItems:'center',gap:14,cursor:'pointer',marginBottom:8 }}>
+          <div style={{ width:44,height:44,borderRadius:14,background:'rgba(255,77,109,0.08)',border:'1px solid rgba(255,77,109,0.15)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+            <LogOut size={20} color="#FF4D6D"/>
           </div>
-          <div className="flex-1 text-left">
-            <p className="text-red-400 font-semibold text-sm">Logout</p>
-            <p className="text-gray-600 text-xs mt-0.5">Session terminate hoga</p>
+          <div style={{ textAlign:'left' }}>
+            <div style={{ color:'#FF4D6D',fontWeight:700,fontSize:14 }}>Logout</div>
+            <div style={{ color:'rgba(255,255,255,0.3)',fontSize:11 }}>Session terminate hoga</div>
           </div>
         </button>
 
-        <p className="text-center text-gray-800 text-[10px] font-mono uppercase tracking-widest pb-4">
-          Capital Medical Agency v2.0 • Bhopal
-        </p>
+        <div style={{ textAlign:'center',color:'rgba(255,255,255,0.1)',fontSize:10,fontFamily:'monospace',letterSpacing:2,marginTop:12 }}>
+          CAPITAL MEDICAL AGENCY v4.0 · AI OS
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Menu Card ─────────────────────────────────────────────────────────────────
+function MenuCard({ icon, iconBg, iconBorder, title, sub, badge, badgeColor, onClick }) {
+  return (
+    <button onClick={onClick} style={{ width:'100%',background:'rgba(10,12,18,1)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:18,padding:'14px 16px',display:'flex',alignItems:'center',gap:14,cursor:'pointer',marginBottom:8,textAlign:'left',transition:'background 0.15s' }}
+      onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.02)'}
+      onMouseLeave={e=>e.currentTarget.style.background='rgba(10,12,18,1)'}
+    >
+      <div style={{ width:44,height:44,borderRadius:14,background:iconBg,border:`1px solid ${iconBorder}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+        {icon}
+      </div>
+      <div style={{ flex:1,minWidth:0 }}>
+        <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:2 }}>
+          <span style={{ color:'#fff',fontWeight:700,fontSize:14 }}>{title}</span>
+          {badge && <span style={{ background:`${badgeColor}18`,border:`1px solid ${badgeColor}30`,color:badgeColor,fontSize:8,fontFamily:'monospace',fontWeight:700,padding:'2px 6px',borderRadius:6 }}>{badge}</span>}
+        </div>
+        <div style={{ color:'rgba(255,255,255,0.35)',fontSize:12 }}>{sub}</div>
+      </div>
+      <ChevronRight size={16} color="rgba(255,255,255,0.2)"/>
+    </button>
+  )
+}
+
+// ── Salesman Section ──────────────────────────────────────────────────────────
+function SalesmanSection({ salesmen, smLoading, showForm, setShowForm, form, setForm, creating, handleCreate, handleToggle, newCode, setNewCode, onBack, loadSalesmen }) {
+  return (
+    <div style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'#040407' }}>
+      <div style={{ padding:'16px 16px 12px',borderBottom:'1px solid rgba(255,255,255,0.05)',display:'flex',alignItems:'center',gap:12 }}>
+        <button onClick={onBack} style={{ width:36,height:36,borderRadius:12,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+          <ChevronLeft size={18} color="rgba(255,255,255,0.6)"/>
+        </button>
+        <div>
+          <div style={{ color:'rgba(255,255,255,0.3)',fontSize:9,fontFamily:'monospace',letterSpacing:3 }}>MANAGEMENT</div>
+          <div style={{ color:'#fff',fontSize:18,fontFamily:'Space Grotesk,sans-serif',fontWeight:800 }}>SALESMAN CODES</div>
+        </div>
+        <button onClick={loadSalesmen} style={{ marginLeft:'auto',width:34,height:34,borderRadius:10,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+          <RefreshCw size={14} color="rgba(255,255,255,0.4)"/>
+        </button>
+      </div>
+
+      <div style={{ flex:1,overflowY:'auto',padding:'14px 14px 100px' }}>
+
+        {/* New code alert */}
+        {newCode && (
+          <div style={{ background:'rgba(0,255,136,0.06)',border:'1px solid rgba(0,255,136,0.2)',borderRadius:18,padding:'14px 16px',marginBottom:14 }}>
+            <div style={{ color:'#00FF88',fontSize:9,fontFamily:'monospace',letterSpacing:2,marginBottom:8 }}>✓ CODE READY — ABHI COPY KARO</div>
+            <div style={{ display:'flex',alignItems:'center',gap:10,background:'rgba(0,0,0,0.3)',borderRadius:12,padding:'10px 14px' }}>
+              <span style={{ color:'#fff',fontFamily:'monospace',fontSize:18,fontWeight:800,letterSpacing:3,flex:1 }}>{newCode}</span>
+              <button onClick={()=>navigator.clipboard?.writeText(newCode).then(()=>toast.success('Copied!'))} style={{ background:'none',border:'none',cursor:'pointer' }}>
+                <Copy size={16} color="#00FF88"/>
+              </button>
+            </div>
+            <div style={{ color:'rgba(255,255,255,0.3)',fontSize:11,marginTop:8 }}>Salesman ko WhatsApp karo. App mein save mat karo.</div>
+            <button onClick={()=>setNewCode(null)} style={{ color:'rgba(255,255,255,0.2)',fontSize:11,background:'none',border:'none',cursor:'pointer',marginTop:6 }}>Dismiss</button>
+          </div>
+        )}
+
+        {/* Add button */}
+        <button onClick={()=>setShowForm(!showForm)} style={{ width:'100%',background:'rgba(0,229,255,0.06)',border:'1px solid rgba(0,229,255,0.15)',borderRadius:18,padding:'14px',display:'flex',alignItems:'center',justifyContent:'center',gap:10,cursor:'pointer',marginBottom:12 }}>
+          <Plus size={16} color="#00E5FF"/>
+          <span style={{ color:'#00E5FF',fontWeight:700,fontSize:13 }}>Naya Salesman Add Karo</span>
+        </button>
+
+        {/* Form */}
+        {showForm && (
+          <div style={{ background:'rgba(10,12,18,1)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:18,padding:'18px',marginBottom:14 }}>
+            {[['Naam *','label','Rahul'],['City *','city','Bhopal'],['Avatar Letter','avatar','R']].map(([label,key,ph])=>(
+              <div key={key} style={{ marginBottom:12 }}>
+                <div style={{ color:'rgba(255,255,255,0.3)',fontSize:9,fontFamily:'monospace',letterSpacing:2,marginBottom:5 }}>{label.toUpperCase()}</div>
+                <input value={form[key]} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))} placeholder={ph} maxLength={key==='avatar'?1:50}
+                  style={{ width:'100%',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'10px 14px',color:'#fff',fontSize:13,outline:'none' }}/>
+              </div>
+            ))}
+            <div style={{ marginBottom:14 }}>
+              <div style={{ color:'rgba(255,255,255,0.3)',fontSize:9,fontFamily:'monospace',letterSpacing:2,marginBottom:8 }}>COLOR</div>
+              <div style={{ display:'flex',gap:8 }}>
+                {COLOR_OPTIONS.map(c=>(
+                  <button key={c.value} onClick={()=>setForm(p=>({...p,color:c.value}))}
+                    style={{ width:30,height:30,borderRadius:8,background:c.value,border:form.color===c.value?'3px solid #fff':'2px solid transparent',cursor:'pointer' }}/>
+                ))}
+              </div>
+            </div>
+            <div style={{ display:'flex',gap:8 }}>
+              <button onClick={handleCreate} disabled={creating} style={{ flex:1,background:'linear-gradient(135deg,#00B8D9,#0070F3)',border:'none',borderRadius:12,padding:'12px',color:'#fff',fontWeight:800,fontSize:13,cursor:'pointer',opacity:creating?0.6:1 }}>
+                {creating?'Ban raha hai...':'✓ Code Banao'}
+              </button>
+              <button onClick={()=>setShowForm(false)} style={{ padding:'12px 16px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'rgba(255,255,255,0.4)',cursor:'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Salesman list */}
+        {smLoading ? (
+          <div style={{ textAlign:'center',padding:40,color:'rgba(255,255,255,0.3)',fontSize:13 }}>Loading...</div>
+        ) : salesmen.length===0 ? (
+          <div style={{ textAlign:'center',padding:40,color:'rgba(255,255,255,0.2)',fontSize:13 }}>Koi salesman nahi. Add karo.</div>
+        ) : salesmen.map(s=>(
+          <div key={s.id} style={{ background:'rgba(10,12,18,1)',border:`1px solid ${s.is_active?'rgba(255,255,255,0.06)':'rgba(255,77,109,0.15)'}`,borderRadius:18,padding:'14px 16px',marginBottom:10,opacity:s.is_active?1:0.55 }}>
+            <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:10 }}>
+              <div style={{ width:40,height:40,borderRadius:12,background:s.color||'#F59E0B',display:'flex',alignItems:'center',justifyContent:'center',color:'#000',fontWeight:800,fontSize:16,flexShrink:0 }}>
+                {s.avatar||s.label[0]}
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ color:'#fff',fontWeight:700,fontSize:14 }}>{s.label}</div>
+                <div style={{ color:'rgba(255,255,255,0.3)',fontSize:11 }}>{s.city||'—'}</div>
+              </div>
+              <button onClick={()=>handleToggle(s.id,s.is_active,s.label)} style={{ background:'none',border:'none',cursor:'pointer',color:s.is_active?'#00FF88':'#FF4D6D' }}>
+                {s.is_active?<ToggleRight size={28}/>:<ToggleLeft size={28}/>}
+              </button>
+            </div>
+            <div style={{ display:'flex',alignItems:'center',gap:8,background:'rgba(0,0,0,0.3)',borderRadius:10,padding:'8px 12px' }}>
+              <span style={{ color:'#FFD700',fontFamily:'monospace',fontSize:13,fontWeight:700,letterSpacing:1,flex:1 }}>{s.code}</span>
+              <button onClick={()=>navigator.clipboard?.writeText(s.code).then(()=>toast.success('Copied!'))} style={{ background:'none',border:'none',cursor:'pointer' }}>
+                <Copy size={13} color="rgba(255,255,255,0.3)"/>
+              </button>
+            </div>
+            {!s.is_active&&<div style={{ display:'flex',alignItems:'center',gap:4,marginTop:8 }}><AlertCircle size={11} color="#FF4D6D"/><span style={{ color:'#FF4D6D',fontSize:10,fontFamily:'monospace' }}>DISABLED — Login blocked</span></div>}
+          </div>
+        ))}
       </div>
     </div>
   )
